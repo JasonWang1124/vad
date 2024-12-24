@@ -9,6 +9,9 @@ enum VadEventType {
   /// Speech end event
   end,
 
+  /// Speech volume change event
+  voiceChange,
+
   /// VAD misfire event
   misfire,
 
@@ -30,11 +33,15 @@ class VadEvent {
   /// Audio data
   final Uint8List? audioData;
 
+  /// Voice volume level (in dB)
+  final double? volumeLevel;
+
   /// Constructor
   VadEvent({
     required this.type,
     required this.timestamp,
     required this.message,
     this.audioData,
+    this.volumeLevel,
   });
 }

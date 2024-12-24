@@ -16,6 +16,9 @@ abstract class VadHandlerBase {
   /// Stream of error events
   Stream<String> get onError;
 
+  /// Stream of voice volume changes (in dB)
+  Stream<double> get onVoiceChange;
+
   /// Start listening for speech events
   void startListening(
       {double positiveSpeechThreshold = 0.5,

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'vad_handler_base.dart';
 
@@ -44,6 +45,8 @@ class VadHandlerWeb implements VadHandlerBase {
       StreamController<void>.broadcast();
   final StreamController<String> _onErrorController =
       StreamController<String>.broadcast();
+  final StreamController<double> _onVoiceChangeController =
+      StreamController<double>.broadcast();
 
   /// Whether to print debug messages
   bool isDebug = false;
@@ -65,6 +68,9 @@ class VadHandlerWeb implements VadHandlerBase {
 
   @override
   Stream<String> get onError => _onErrorController.stream;
+
+  @override
+  Stream<double> get onVoiceChange => _onVoiceChangeController.stream;
 
   @override
   void startListening(
@@ -137,6 +143,28 @@ class VadHandlerWeb implements VadHandlerBase {
           }
           _onVADMisfireController.add(null);
           break;
+        case 'onVoiceChange':
+          if (eventData.containsKey('volume')) {
+            final double amplitude = (eventData['volume'] as num).toDouble();
+            // Convert volume to 16-bit PCM range (-32768 to 32767)
+            double normalizedAmplitude = amplitude * 32768.0;
+
+            // Calculate decibels (same as non-web version)
+            double db = 20 * (log(normalizedAmplitude.abs() / 32768.0) / ln10);
+
+            // Normalize dB value to 0-1 range
+            double minDb = -90.0; // Minimum dB value
+            double maxDb = 0.0; // Maximum dB value
+            double normalizedDb =
+                ((db - minDb) / (maxDb - minDb)).clamp(0.0, 1.0);
+
+            if (isDebug) {
+              debugPrint(
+                  'VadHandlerWeb: Raw Amplitude: $amplitude, PCM: $normalizedAmplitude, dB: $db, normalized: $normalizedDb');
+            }
+            _onVoiceChangeController.add(normalizedDb);
+          }
+          break;
         default:
           debugPrint("Unknown event: $eventType");
       }
@@ -155,6 +183,7 @@ class VadHandlerWeb implements VadHandlerBase {
     _onSpeechStartController.close();
     _onVADMisfireController.close();
     _onErrorController.close();
+    _onVoiceChangeController.close();
   }
 
   @override
