@@ -72,8 +72,7 @@ class Recording {
 class _MyHomePageState extends State<MyHomePage> {
   List<Recording> recordings = [];
   final audioplayers.AudioPlayer _audioPlayer = audioplayers.AudioPlayer();
-  final _vadHandler = VadHandler.create(
-      isDebug: true);
+  final _vadHandler = VadHandler.create(isDebug: true);
   bool isListening = false;
   int frameSamples = 1536; // 1 frame = 1536 samples = 96ms
   int minSpeechFrames = 3;
@@ -86,6 +85,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Duration _position = Duration.zero;
   bool _isPlaying = false;
   int? _currentlyPlayingIndex;
+  double currentDecibel = -60.0; // 新增分貝值狀態
 
   @override
   void initState() {
@@ -143,6 +143,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
     _vadHandler.onError.listen((String message) {
       debugPrint('Error: $message');
+    });
+
+    _vadHandler.onVoiceChange.listen((double db) {
+      setState(() {
+        currentDecibel = db;
+      });
     });
   }
 
@@ -296,6 +302,42 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  Widget _buildDecibelMeter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('音量', style: TextStyle(fontSize: 16)),
+              Text('${(-currentDecibel).toStringAsFixed(1)} dB',
+                  style: const TextStyle(fontSize: 16)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: 1 - ((60 + currentDecibel) / 60),
+              minHeight: 10,
+              backgroundColor: Colors.grey[800],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _getDecibelColor(currentDecibel),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getDecibelColor(double db) {
+    if (db < -40) return Colors.red;
+    if (db < -20) return Colors.yellow;
+    return Colors.green;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -306,6 +348,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Column(
         children: [
+          if (isListening) _buildDecibelMeter(), // 加入分貝顯示器
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
