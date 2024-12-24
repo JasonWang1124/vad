@@ -131,7 +131,6 @@ class VadHandlerNonWeb implements VadHandlerBase {
     _audioStreamSubscription = stream.listen((data) async {
       // 計算分貝值並發送到 stream
       double db = calculateDecibelRMS(Uint8List.fromList(data));
-      debugPrint('VadHandlerNonWeb: db: $db');
       _onVoiceChangeController.add(db);
 
       // Process audio data for VAD
@@ -205,7 +204,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
     double db = 20 * log(amplitude / referenceLevel) / ln10;
 
     // Adjust the range to be more dynamic
-    return (-db.clamp(0, 60)).toDouble();
+    return (db.clamp(0, 60)).toDouble();
   }
 }
 
