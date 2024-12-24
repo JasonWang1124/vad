@@ -146,23 +146,30 @@ class VadHandlerWeb implements VadHandlerBase {
         case 'onVoiceChange':
           if (eventData.containsKey('volume')) {
             final double amplitude = (eventData['volume'] as num).toDouble();
-            // Convert volume to 16-bit PCM range (-32768 to 32767)
-            double normalizedAmplitude = amplitude * 32768.0;
 
-            // Calculate decibels (same as non-web version)
-            double db = 20 * (log(normalizedAmplitude.abs() / 32768.0) / ln10);
+            // Convert to decibels with adjusted reference level
+            const double maxPossibleValue =
+                32768.0; // Maximum possible value for 16-bit audio
+            const double referenceLevel =
+                maxPossibleValue / 100; // Using 1% of max as reference
 
-            // Normalize dB value to 0-1 range
-            double minDb = -90.0; // Minimum dB value
-            double maxDb = 0.0; // Maximum dB value
-            double normalizedDb =
-                ((db - minDb) / (maxDb - minDb)).clamp(0.0, 1.0);
+            // Avoid taking log of zero
+            if (amplitude < 1) {
+              _onVoiceChangeController.add(-60.0);
+              return;
+            }
+
+            // Calculate dB with adjusted scaling
+            double db = 20 * log(amplitude / referenceLevel) / ln10;
+
+            // Adjust the range to be more dynamic
+            double finalDb = (-db.clamp(0, 60)).toDouble();
 
             if (isDebug) {
               debugPrint(
-                  'VadHandlerWeb: Raw Amplitude: $amplitude, PCM: $normalizedAmplitude, dB: $db, normalized: $normalizedDb');
+                  'VadHandlerWeb: Raw Amplitude: $amplitude, dB: $finalDb');
             }
-            _onVoiceChangeController.add(normalizedDb);
+            _onVoiceChangeController.add(finalDb);
           }
           break;
         default:
