@@ -163,7 +163,7 @@ class VadHandlerWeb implements VadHandlerBase {
             double db = 20 * log(amplitude / referenceLevel) / ln10;
 
             // Adjust the range to be more dynamic
-            double finalDb = (db.clamp(0, 60)).toDouble();
+            double finalDb = (-db.clamp(0, 60)).toDouble();
 
             if (isDebug) {
               debugPrint(

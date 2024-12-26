@@ -204,7 +204,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
     double db = 20 * log(amplitude / referenceLevel) / ln10;
 
     // Adjust the range to be more dynamic
-    return (db.clamp(0, 60)).toDouble();
+    return (-db.clamp(0, 60)).toDouble();
   }
 }
 
