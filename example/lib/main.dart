@@ -1,10 +1,12 @@
 // main.dart
 
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart' as audioplayers;
 import 'package:vad/vad.dart';
 import 'audio_utils.dart';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -153,13 +155,16 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _initializeAudioPlayer() async {
-    await _audioPlayer.setAudioContext(
-      audioplayers.AudioContext(
-        iOS: audioplayers.AudioContextIOS(
-          options: const {audioplayers.AVAudioSessionOptions.mixWithOthers},
+    if (Platform.isIOS) {
+      await _audioPlayer.setAudioContext(
+        audioplayers.AudioContext(
+          iOS: audioplayers.AudioContextIOS(
+            options: const {audioplayers.AVAudioSessionOptions.mixWithOthers},
+          ),
         ),
-      ),
-    );
+      );
+    }
+    // 對於其他平台，不調用 setAudioContext
   }
 
   Future<void> _playRecording(Recording recording, int index) async {
