@@ -6,7 +6,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart' as audioplayers;
 import 'package:vad/vad.dart';
 import 'audio_utils.dart';
-import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
