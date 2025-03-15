@@ -92,7 +92,8 @@ class VadHandlerNonWeb implements VadHandlerBase {
       int redemptionFrames = 8,
       int frameSamples = 1536,
       int minSpeechFrames = 3,
-      bool submitUserSpeechOnPause = true}) async {
+      bool submitUserSpeechOnPause = true,
+      int warmupFrames = 10}) async {
     if (!_isInitialized) {
       _vadIterator = VadIterator.create(
           isDebug: isDebug,
@@ -103,14 +104,16 @@ class VadHandlerNonWeb implements VadHandlerBase {
           redemptionFrames: redemptionFrames,
           preSpeechPadFrames: preSpeechPadFrames,
           minSpeechFrames: minSpeechFrames,
-          submitUserSpeechOnPause: submitUserSpeechOnPause);
+          submitUserSpeechOnPause: submitUserSpeechOnPause,
+          warmupFrames: warmupFrames);
       await _vadIterator.initModel(modelPath);
       _vadIterator.setVadEventCallback(_handleVadEvent);
       _submitUserSpeechOnPause = submitUserSpeechOnPause;
       _isInitialized = true;
     } else {
-      // 如果已經初始化，只更新 _submitUserSpeechOnPause 標誌
+      // 如果已經初始化，更新參數
       _submitUserSpeechOnPause = submitUserSpeechOnPause;
+      _vadIterator.setWarmupFrames(warmupFrames);
     }
 
     bool hasPermission = await _audioRecorder.hasPermission();

@@ -27,6 +27,10 @@ abstract class VadIteratorBase {
 
   /// Returns whether speech is currently being detected.
   bool isSpeaking();
+
+  /// Set the number of frames to ignore at startup.
+  /// This helps prevent false speech detection when the microphone is first initialized.
+  void setWarmupFrames(int frames);
 }
 
 /// Callback for VAD events.

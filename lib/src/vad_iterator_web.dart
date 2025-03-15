@@ -16,6 +16,11 @@ class VadIteratorWeb implements VadIteratorBase {
   }
 
   @override
+  void setWarmupFrames(int frames) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> initModel(String modelPath) {
     throw UnimplementedError();
   }

@@ -28,7 +28,8 @@ abstract class VadHandlerBase {
       int redemptionFrames = 8,
       int frameSamples = 1536,
       int minSpeechFrames = 3,
-      bool submitUserSpeechOnPause = true});
+      bool submitUserSpeechOnPause = true,
+      int warmupFrames = 10});
 
   /// Stop listening for speech events
   void stopListening();

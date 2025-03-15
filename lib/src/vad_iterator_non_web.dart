@@ -52,6 +52,12 @@ class VadIteratorNonWeb implements VadIteratorBase {
   int speechPositiveFrameCount = 0;
   int _currentSample = 0; // To track position in samples
 
+  /// Number of frames to ignore at startup to prevent false detections.
+  int _warmupFrames = 10; // 默認忽略前10幀
+
+  /// Counter for processed frames.
+  int _processedFrames = 0;
+
   /// Buffers for pre-speech and speech data.
   List<Float32List> preSpeechBuffer = [];
 
@@ -120,6 +126,7 @@ class VadIteratorNonWeb implements VadIteratorBase {
     redemptionCounter = 0;
     speechPositiveFrameCount = 0;
     _currentSample = 0;
+    _processedFrames = 0; // 重置已處理幀計數器
     preSpeechBuffer.clear();
     speechBuffer.clear();
     _byteBuffer.clear();
@@ -206,6 +213,19 @@ class VadIteratorNonWeb implements VadIteratorBase {
   Future<void> _processFrame(Float32List data) async {
     if (_session == null) {
       debugPrint('VAD Iterator: Session not initialized.');
+      return;
+    }
+
+    // 增加已處理幀計數
+    _processedFrames++;
+
+    // 如果在預熱階段，則忽略此幀
+    if (_processedFrames <= _warmupFrames) {
+      if (isDebug) {
+        debugPrint(
+            'VAD Iterator: Warming up, ignoring frame $_processedFrames of $_warmupFrames');
+      }
+      _addToPreSpeechBuffer(data);
       return;
     }
 
@@ -363,6 +383,11 @@ class VadIteratorNonWeb implements VadIteratorBase {
     final buffer = data.buffer;
     final int16List = Int16List.view(buffer);
     return int16List.map((e) => e / 32768.0).toList();
+  }
+
+  @override
+  void setWarmupFrames(int frames) {
+    _warmupFrames = frames;
   }
 }
 

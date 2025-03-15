@@ -522,6 +522,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           submitUserSpeechOnPause: submitUserSpeechOnPause,
                           preSpeechPadFrames: preSpeechPadFrames,
                           redemptionFrames: redemptionFrames,
+                          warmupFrames: 15,
                         );
                       }
                     });
@@ -542,6 +543,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           submitUserSpeechOnPause: submitUserSpeechOnPause,
                           preSpeechPadFrames: preSpeechPadFrames,
                           redemptionFrames: redemptionFrames,
+                          warmupFrames: 15,
                         );
                       }
                       isListening = !isListening;

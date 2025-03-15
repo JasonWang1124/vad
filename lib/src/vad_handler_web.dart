@@ -79,7 +79,8 @@ class VadHandlerWeb implements VadHandlerBase {
       int redemptionFrames = 8,
       int frameSamples = 1536,
       int minSpeechFrames = 3,
-      bool submitUserSpeechOnPause = true}) {
+      bool submitUserSpeechOnPause = true,
+      int warmupFrames = 10}) {
     if (isDebug) {
       debugPrint(
           'VadHandlerWeb: startListening: Calling startListeningImpl with parameters: '
@@ -89,7 +90,8 @@ class VadHandlerWeb implements VadHandlerBase {
           'redemptionFrames: $redemptionFrames, '
           'frameSamples: $frameSamples, '
           'minSpeechFrames: $minSpeechFrames, '
-          'submitUserSpeechOnPause: $submitUserSpeechOnPause');
+          'submitUserSpeechOnPause: $submitUserSpeechOnPause, '
+          'warmupFrames: $warmupFrames');
     }
     startListeningImpl(
         positiveSpeechThreshold,
