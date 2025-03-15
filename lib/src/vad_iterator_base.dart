@@ -24,8 +24,10 @@ abstract class VadIteratorBase {
 
   /// Forcefully end speech detection on pause/stop event.
   void forceEndSpeech();
+
+  /// Returns whether speech is currently being detected.
+  bool isSpeaking();
 }
 
 /// Callback for VAD events.
 typedef VadEventCallback = void Function(VadEvent event);
-

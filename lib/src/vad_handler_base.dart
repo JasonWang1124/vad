@@ -1,6 +1,7 @@
 // vad_handler_base.dart
 
 import 'dart:async';
+import 'dart:typed_data';
 
 /// Abstract class for VAD handler
 abstract class VadHandlerBase {
@@ -16,8 +17,8 @@ abstract class VadHandlerBase {
   /// Stream of error events
   Stream<String> get onError;
 
-  /// Stream of voice volume changes (in dB)
-  Stream<double> get onVoiceChange;
+  /// Stream of audio frame events
+  Stream<Uint8List> get onAudioFrame;
 
   /// Start listening for speech events
   void startListening(
@@ -27,7 +28,7 @@ abstract class VadHandlerBase {
       int redemptionFrames = 8,
       int frameSamples = 1536,
       int minSpeechFrames = 3,
-      bool submitUserSpeechOnPause = false});
+      bool submitUserSpeechOnPause = true});
 
   /// Stop listening for speech events
   void stopListening();

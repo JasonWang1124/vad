@@ -1,6 +1,8 @@
 // main.dart
 
 import 'dart:io' show Platform;
+import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart' as audioplayers;
@@ -72,14 +74,15 @@ class Recording {
 
 class _MyHomePageState extends State<MyHomePage> {
   List<Recording> recordings = [];
-  final audioplayers.AudioPlayer _audioPlayer = audioplayers.AudioPlayer();
-  final _vadHandler = VadHandler.create(isDebug: true);
+  audioplayers.AudioPlayer? _audioPlayer;
+  late final dynamic _vadHandler;
   bool isListening = false;
   int frameSamples = 1536; // 1 frame = 1536 samples = 96ms
   int minSpeechFrames = 3;
   int preSpeechPadFrames = 10;
   int redemptionFrames = 8;
-  bool submitUserSpeechOnPause = false;
+  bool submitUserSpeechOnPause = true;
+  bool isWindowsPlatform = false;
 
   // Audio player state
   Duration _duration = Duration.zero;
@@ -88,56 +91,108 @@ class _MyHomePageState extends State<MyHomePage> {
   int? _currentlyPlayingIndex;
   double currentDecibel = -60.0; // 新增分貝值狀態
 
+  // 新增音訊幀緩衝區
+  final List<Uint8List> _audioFrameBuffer = [];
+  bool _isSpeaking = false;
+
   @override
   void initState() {
     super.initState();
     _initializeAudioPlayer();
     _setupAudioPlayerListeners();
-    _setupVadHandler();
+    _initializePlatformSpecifics();
+  }
+
+  void _initializePlatformSpecifics() {
+    try {
+      isWindowsPlatform = Platform.isWindows;
+
+      // 在所有平台上都初始化 VAD
+      _vadHandler = VadHandler.create(isDebug: true);
+      _setupVadHandler();
+
+      if (isWindowsPlatform) {
+        debugPrint('Windows 平台檢測到，權限請求可能不支援');
+      }
+    } catch (e) {
+      debugPrint('平台檢測錯誤: $e');
+      // 假設是 Web 平台或其他不支援 dart:io 的平台
+      _vadHandler = VadHandler.create(isDebug: true);
+      _setupVadHandler();
+    }
   }
 
   void _setupAudioPlayerListeners() {
-    _audioPlayer.onDurationChanged.listen((Duration duration) {
-      setState(() => _duration = duration);
-    });
-
-    _audioPlayer.onPositionChanged.listen((Duration position) {
-      setState(() => _position = position);
-    });
-
-    _audioPlayer.onPlayerComplete.listen((_) {
-      setState(() {
-        _isPlaying = false;
-        _position = Duration.zero;
-        _currentlyPlayingIndex = null;
+    // 在某些平台上可能不支援某些功能，所以我們使用 try-catch 來處理
+    try {
+      _audioPlayer?.onDurationChanged.listen((Duration duration) {
+        if (!mounted) return;
+        setState(() => _duration = duration);
       });
-    });
 
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      setState(() {
-        _isPlaying = state == audioplayers.PlayerState.playing;
+      _audioPlayer?.onPositionChanged.listen((Duration position) {
+        if (!mounted) return;
+        setState(() => _position = position);
       });
-    });
+
+      _audioPlayer?.onPlayerStateChanged.listen((state) {
+        if (!mounted) return;
+        setState(() {
+          _isPlaying = state == audioplayers.PlayerState.playing;
+        });
+      });
+    } catch (e) {
+      debugPrint('設置音訊播放器監聽器時出錯: $e');
+    }
   }
 
   void _setupVadHandler() {
     _vadHandler.onSpeechStart.listen((_) {
       debugPrint('Speech detected.');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('語音檢測開始'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
     });
 
     _vadHandler.onSpeechEnd.listen((List<double> samples) {
+      if (!mounted) return;
       setState(() {
+        _isSpeaking = false;
         recordings.add(Recording(
           samples: samples,
           type: RecordingType.speech,
         ));
+        // 清空音訊幀緩衝區
+        _audioFrameBuffer.clear();
       });
-      debugPrint('Speech ended, recording added.');
+      debugPrint(
+          'Speech ended, recording added. Length: ${samples.length} samples');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '語音檢測結束，錄音長度: ${(samples.length / 16000).toStringAsFixed(1)} 秒'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     });
 
     _vadHandler.onVADMisfire.listen((_) {
+      if (!mounted) return;
       setState(() {
+        _isSpeaking = false;
         recordings.add(Recording(type: RecordingType.misfire));
+        // 清空音訊幀緩衝區
+        _audioFrameBuffer.clear();
       });
       debugPrint('VAD misfire detected.');
     });
@@ -146,24 +201,57 @@ class _MyHomePageState extends State<MyHomePage> {
       debugPrint('Error: $message');
     });
 
-    _vadHandler.onVoiceChange.listen((double db) {
-      setState(() {
-        currentDecibel = db;
-      });
+    // 新增對音訊幀事件的處理
+    _vadHandler.onAudioFrame.listen((Uint8List audioData) {
+      // 更新音量顯示
+      _updateVolumeLevel(audioData);
+
+      // 如果正在說話，則將音訊幀添加到緩衝區
+      if (_isSpeaking || submitUserSpeechOnPause) {
+        _audioFrameBuffer.add(audioData);
+      }
     });
   }
 
-  Future<void> _initializeAudioPlayer() async {
-    if (Platform.isIOS) {
-      await _audioPlayer.setAudioContext(
-        audioplayers.AudioContext(
-          iOS: audioplayers.AudioContextIOS(
-            options: const {audioplayers.AVAudioSessionOptions.mixWithOthers},
-          ),
-        ),
-      );
+  // 重新調整計算音量級別的方法
+  void _updateVolumeLevel(Uint8List audioData) {
+    if (audioData.isEmpty) return;
+
+    final int16List = audioData.buffer.asInt16List();
+    double sum = 0;
+    for (int i = 0; i < int16List.length; i++) {
+      sum += int16List[i] * int16List[i];
     }
-    // 對於其他平台，不調用 setAudioContext
+
+    final double rms = sum > 0 ? math.sqrt(sum / int16List.length) : 0;
+    final double normalizedRms = rms / 32768.0; // 正規化到 0-1 範圍
+
+    // 計算分貝值 (避免對數運算出現問題)
+    double db;
+    if (normalizedRms < 0.0001) {
+      // 非常小的聲音
+      db = -60.0; // 靜音
+    } else {
+      db = 20 * math.log(normalizedRms) / math.ln10;
+    }
+
+    // 確保分貝值在合理範圍內
+    db = db.clamp(-60.0, 0.0);
+
+    if (mounted) {
+      setState(() {
+        currentDecibel = db;
+      });
+    }
+  }
+
+  Future<void> _initializeAudioPlayer() async {
+    try {
+      _audioPlayer = audioplayers.AudioPlayer();
+      // 不再調用 setAudioContext 方法，因為這可能導致 MissingPluginException
+    } catch (e) {
+      debugPrint('初始化音訊播放器時出錯: $e');
+    }
   }
 
   Future<void> _playRecording(Recording recording, int index) async {
@@ -171,41 +259,78 @@ class _MyHomePageState extends State<MyHomePage> {
 
     try {
       if (_currentlyPlayingIndex == index && _isPlaying) {
-        await _audioPlayer.pause();
+        try {
+          await _audioPlayer?.pause();
+        } catch (e) {
+          debugPrint('暫停音訊時出錯: $e');
+        }
+        if (!mounted) return;
         setState(() {
           _isPlaying = false;
         });
       } else {
         if (_currentlyPlayingIndex != index) {
-          String uri = AudioUtils.createWavUrl(recording.samples!);
-          await _audioPlayer.play(audioplayers.UrlSource(uri));
+          try {
+            String uri = AudioUtils.createWavUrl(recording.samples!);
+            await _audioPlayer?.play(audioplayers.UrlSource(uri));
+          } catch (e) {
+            debugPrint('播放音訊時出錯: $e');
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('播放音訊時出錯: ${e.toString().split('\n')[0]}'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          if (!mounted) return;
           setState(() {
             _currentlyPlayingIndex = index;
             _isPlaying = true;
           });
         } else {
-          await _audioPlayer.resume();
+          try {
+            await _audioPlayer?.resume();
+          } catch (e) {
+            debugPrint('恢復播放時出錯: $e');
+          }
+          if (!mounted) return;
           setState(() {
             _isPlaying = true;
           });
         }
       }
     } catch (e) {
-      debugPrint('Error playing audio: $e');
+      debugPrint('播放錄音時出錯: $e');
     }
   }
 
   Future<void> _seekTo(Duration position) async {
-    await _audioPlayer.seek(position);
-    setState(() {
-      _position = position;
-    });
+    try {
+      await _audioPlayer?.seek(position);
+      if (!mounted) return;
+      setState(() {
+        _position = position;
+      });
+    } catch (e) {
+      debugPrint('調整播放位置時出錯: $e');
+    }
   }
 
   @override
   void dispose() {
-    _audioPlayer.dispose();
-    _vadHandler.dispose();
+    try {
+      _audioPlayer?.dispose();
+    } catch (e) {
+      debugPrint('釋放音訊播放器資源時出錯: $e');
+    }
+
+    try {
+      _vadHandler.dispose();
+    } catch (e) {
+      debugPrint('釋放 VAD 處理器資源時出錯: $e');
+    }
     super.dispose();
   }
 
@@ -315,7 +440,10 @@ class _MyHomePageState extends State<MyHomePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('音量', style: TextStyle(fontSize: 16)),
-              Text('${(-currentDecibel).toStringAsFixed(1)} dB',
+              Text(
+                  currentDecibel < -55.0
+                      ? "靜音"
+                      : "${(-currentDecibel).toStringAsFixed(1)} dB",
                   style: const TextStyle(fontSize: 16)),
             ],
           ),
@@ -323,7 +451,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: 1 - ((60 + currentDecibel) / 60),
+              value: 1 - ((60 + currentDecibel) / 60).clamp(0.0, 1.0),
               minHeight: 10,
               backgroundColor: Colors.grey[800],
               valueColor: AlwaysStoppedAnimation<Color>(
@@ -337,6 +465,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Color _getDecibelColor(double db) {
+    if (db < -55) return Colors.grey; // 靜音時顯示灰色
     if (db < -40) return Colors.red;
     if (db < -20) return Colors.yellow;
     return Colors.green;
@@ -378,11 +507,35 @@ class _MyHomePageState extends State<MyHomePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                SwitchListTile(
+                  title: const Text('保留手動停止時的音訊'),
+                  subtitle: const Text('啟用後，手動停止錄音時會保留已錄製的音訊'),
+                  value: submitUserSpeechOnPause,
+                  activeColor: Colors.blue,
+                  onChanged: (value) {
+                    setState(() {
+                      submitUserSpeechOnPause = value;
+                      if (isListening) {
+                        _vadHandler.stopListening();
+                        _vadHandler.startListening(
+                          frameSamples: frameSamples,
+                          submitUserSpeechOnPause: submitUserSpeechOnPause,
+                          preSpeechPadFrames: preSpeechPadFrames,
+                          redemptionFrames: redemptionFrames,
+                        );
+                      }
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: () async {
                     setState(() {
                       if (isListening) {
                         _vadHandler.stopListening();
+                        // 不在這裡調用 _saveCurrentAudioBuffer，讓 VAD 套件的 forceEndSpeech 處理
+                        // 如果用戶正在講話，forceEndSpeech 會觸發 onSpeechEnd 事件
+                        // 如果用戶沒有講話，則不需要保存音頻
                       } else {
                         _vadHandler.startListening(
                           frameSamples: frameSamples,
@@ -402,11 +555,65 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                if (isListening)
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      _vadHandler.stopListening();
+                      // 只有在用戶正在講話時才保存音頻
+                      // 如果 submitUserSpeechOnPause 為 false，則不保存音頻
+                      if (!submitUserSpeechOnPause) {
+                        _audioFrameBuffer.clear();
+                      }
+                      // 不在這裡調用 _saveCurrentAudioBuffer，讓 VAD 套件的 forceEndSpeech 處理
+                      setState(() {
+                        isListening = false;
+                      });
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              submitUserSpeechOnPause && _isSpeaking
+                                  ? '已手動停止錄音，音訊已保存'
+                                  : '已手動停止錄音，音訊未保存',
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.pan_tool),
+                    label: const Text("測試手動停止"),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      backgroundColor: Colors.orange,
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                if (isListening)
+                  ElevatedButton.icon(
+                    onPressed: _simulateSpeech,
+                    icon: const Icon(Icons.record_voice_over),
+                    label: const Text("模擬語音檢測"),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      backgroundColor: Colors.green,
+                    ),
+                  ),
+                const SizedBox(height: 8),
                 TextButton.icon(
-                  onPressed: () async {
-                    final status = await Permission.microphone.request();
-                    debugPrint("Microphone permission status: $status");
-                  },
+                  onPressed: isWindowsPlatform
+                      ? () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Windows 平台上不需要請求麥克風權限'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      : () async {
+                          final status = await Permission.microphone.request();
+                          debugPrint("Microphone permission status: $status");
+                        },
                   icon: const Icon(Icons.settings_voice),
                   label: const Text("Request Microphone Permission"),
                   style: TextButton.styleFrom(
@@ -417,6 +624,28 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // 添加一個函數來模擬語音檢測
+  Future<void> _simulateSpeech() async {
+    if (!isListening) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('請先開始錄音'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('模擬語音檢測中...請說話'),
+        duration: Duration(seconds: 2),
       ),
     );
   }

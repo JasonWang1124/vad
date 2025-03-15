@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'vad_handler_base.dart';
 
@@ -45,8 +44,8 @@ class VadHandlerWeb implements VadHandlerBase {
       StreamController<void>.broadcast();
   final StreamController<String> _onErrorController =
       StreamController<String>.broadcast();
-  final StreamController<double> _onVoiceChangeController =
-      StreamController<double>.broadcast();
+  final StreamController<Uint8List> _onAudioFrameController =
+      StreamController<Uint8List>.broadcast();
 
   /// Whether to print debug messages
   bool isDebug = false;
@@ -70,7 +69,7 @@ class VadHandlerWeb implements VadHandlerBase {
   Stream<String> get onError => _onErrorController.stream;
 
   @override
-  Stream<double> get onVoiceChange => _onVoiceChangeController.stream;
+  Stream<Uint8List> get onAudioFrame => _onAudioFrameController.stream;
 
   @override
   void startListening(
@@ -80,7 +79,7 @@ class VadHandlerWeb implements VadHandlerBase {
       int redemptionFrames = 8,
       int frameSamples = 1536,
       int minSpeechFrames = 3,
-      bool submitUserSpeechOnPause = false}) {
+      bool submitUserSpeechOnPause = true}) {
     if (isDebug) {
       debugPrint(
           'VadHandlerWeb: startListening: Calling startListeningImpl with parameters: '
@@ -143,33 +142,17 @@ class VadHandlerWeb implements VadHandlerBase {
           }
           _onVADMisfireController.add(null);
           break;
-        case 'onVoiceChange':
-          if (eventData.containsKey('volume')) {
-            final double amplitude = (eventData['volume'] as num).toDouble();
-
-            // Convert to decibels with adjusted reference level
-            const double maxPossibleValue =
-                32768.0; // Maximum possible value for 16-bit audio
-            const double referenceLevel =
-                maxPossibleValue / 100; // Using 1% of max as reference
-
-            // Avoid taking log of zero
-            if (amplitude < 1) {
-              _onVoiceChangeController.add(-60.0);
-              return;
-            }
-
-            // Calculate dB with adjusted scaling
-            double db = 20 * log(amplitude / referenceLevel) / ln10;
-
-            // Adjust the range to be more dynamic
-            double finalDb = (-db.clamp(0, 60)).toDouble();
-
+        case 'onAudioFrame':
+          if (eventData.containsKey('audioData')) {
+            final List<int> audioDataList = (eventData['audioData'] as List)
+                .map((e) => (e as num).toInt())
+                .toList();
+            final Uint8List audioData = Uint8List.fromList(audioDataList);
             if (isDebug) {
               debugPrint(
-                  'VadHandlerWeb: Raw Amplitude: $amplitude, dB: $finalDb');
+                  'VadHandlerWeb: onAudioFrame: ${audioData.length} bytes');
             }
-            _onVoiceChangeController.add(finalDb);
+            _onAudioFrameController.add(audioData);
           }
           break;
         default:
@@ -177,7 +160,7 @@ class VadHandlerWeb implements VadHandlerBase {
       }
     } catch (e, st) {
       debugPrint('Error handling event: $e');
-      debugPrint('Stack Trace: $st');
+      debugPrint('$st');
     }
   }
 
@@ -190,7 +173,7 @@ class VadHandlerWeb implements VadHandlerBase {
     _onSpeechStartController.close();
     _onVADMisfireController.close();
     _onErrorController.close();
-    _onVoiceChangeController.close();
+    _onAudioFrameController.close();
   }
 
   @override

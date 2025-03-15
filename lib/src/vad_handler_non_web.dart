@@ -1,15 +1,12 @@
 // vad_handler_non_web.dart
-
-import 'dart:typed_data';
-
 import 'package:flutter/cupertino.dart';
 import 'package:record/record.dart';
 import 'package:vad/src/vad_handler_base.dart';
 import 'package:vad/src/vad_iterator.dart';
 import 'dart:async';
+import 'dart:typed_data';
 import 'vad_event.dart';
 import 'vad_iterator_base.dart';
-import 'dart:math';
 
 /// VadHandlerNonWeb class
 class VadHandlerNonWeb implements VadHandlerBase {
@@ -32,7 +29,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
   final _onSpeechStartController = StreamController<void>.broadcast();
   final _onVADMisfireController = StreamController<void>.broadcast();
   final _onErrorController = StreamController<String>.broadcast();
-  final _onVoiceChangeController = StreamController<double>.broadcast();
+  final _onAudioFrameController = StreamController<Uint8List>.broadcast();
 
   @override
   Stream<List<double>> get onSpeechEnd => _onSpeechEndController.stream;
@@ -47,7 +44,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
   Stream<String> get onError => _onErrorController.stream;
 
   @override
-  Stream<double> get onVoiceChange => _onVoiceChangeController.stream;
+  Stream<Uint8List> get onAudioFrame => _onAudioFrameController.stream;
 
   /// Constructor
   VadHandlerNonWeb(
@@ -77,6 +74,11 @@ class VadHandlerNonWeb implements VadHandlerBase {
       case VadEventType.error:
         _onErrorController.add(event.message);
         break;
+      case VadEventType.audioFrame:
+        if (event.audioData != null) {
+          _onAudioFrameController.add(event.audioData!);
+        }
+        break;
       default:
         break;
     }
@@ -90,7 +92,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
       int redemptionFrames = 8,
       int frameSamples = 1536,
       int minSpeechFrames = 3,
-      bool submitUserSpeechOnPause = false}) async {
+      bool submitUserSpeechOnPause = true}) async {
     if (!_isInitialized) {
       _vadIterator = VadIterator.create(
           isDebug: isDebug,
@@ -106,6 +108,9 @@ class VadHandlerNonWeb implements VadHandlerBase {
       _vadIterator.setVadEventCallback(_handleVadEvent);
       _submitUserSpeechOnPause = submitUserSpeechOnPause;
       _isInitialized = true;
+    } else {
+      // 如果已經初始化，只更新 _submitUserSpeechOnPause 標誌
+      _submitUserSpeechOnPause = submitUserSpeechOnPause;
     }
 
     bool hasPermission = await _audioRecorder.hasPermission();
@@ -129,11 +134,6 @@ class VadHandlerNonWeb implements VadHandlerBase {
         noiseSuppress: true));
 
     _audioStreamSubscription = stream.listen((data) async {
-      // 計算分貝值並發送到 stream
-      double db = calculateDecibelRMS(Uint8List.fromList(data));
-      _onVoiceChangeController.add(db);
-
-      // Process audio data for VAD
       await _vadIterator.processAudioData(data);
     });
   }
@@ -143,7 +143,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
     if (isDebug) debugPrint('stopListening');
     try {
       // Before stopping the audio stream, handle forced speech end if needed
-      if (_submitUserSpeechOnPause) {
+      if (_submitUserSpeechOnPause && _vadIterator.isSpeaking()) {
         _vadIterator.forceEndSpeech();
       }
 
@@ -166,45 +166,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
     _onSpeechStartController.close();
     _onVADMisfireController.close();
     _onErrorController.close();
-    _onVoiceChangeController.close();
-  }
-
-  /// Calculate the decibel RMS of the audio data.
-  double calculateDecibelRMS(Uint8List audioData) {
-    if (audioData.isEmpty) return -60.0;
-
-    // Convert Uint8List to Int16List since we're using 16-bit PCM
-    Int16List samples = audioData.buffer.asInt16List();
-
-    // 1. Calculate the RMS of the audio data
-    double sumOfSquares = 0;
-    double maxSample = 0;
-
-    for (int sample in samples) {
-      double abs = sample.abs().toDouble();
-      sumOfSquares += abs * abs;
-      maxSample = max(maxSample, abs);
-    }
-
-    double rms = sqrt(sumOfSquares / samples.length);
-
-    // Use a combination of RMS and peak values for better dynamics
-    double amplitude = (rms + maxSample) / 2;
-
-    // Convert to decibels with adjusted reference level
-    const double maxPossibleValue =
-        32768.0; // Maximum possible value for 16-bit audio
-    const double referenceLevel =
-        maxPossibleValue / 100; // Using 1% of max as reference
-
-    // Avoid taking log of zero
-    if (amplitude < 1) return -60.0;
-
-    // Calculate dB with adjusted scaling
-    double db = 20 * log(amplitude / referenceLevel) / ln10;
-
-    // Adjust the range to be more dynamic
-    return (-db.clamp(0, 60)).toDouble();
+    _onAudioFrameController.close();
   }
 }
 

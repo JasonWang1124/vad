@@ -16,7 +16,10 @@ enum VadEventType {
   misfire,
 
   /// Error event
-  error
+  error,
+
+  /// Audio frame event
+  audioFrame
 }
 
 /// VadEvent class

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -147,6 +148,50 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Process audio data.
   @override
   Future<void> processAudioData(List<int> data) async {
+    if (data.isEmpty) {
+      if (isDebug) debugPrint('VAD Iterator: Empty audio data received.');
+      return;
+    }
+
+    // 將音訊數據轉換為 Int16List 用於計算音量
+    final int16List = Uint8List.fromList(data).buffer.asInt16List();
+
+    // 計算音量級別 (RMS 轉換為分貝)
+    double sum = 0;
+    for (int i = 0; i < int16List.length; i++) {
+      sum += int16List[i] * int16List[i];
+    }
+    final double rms = sum > 0 ? math.sqrt(sum / int16List.length) : 0;
+    final double normalizedRms = rms / 32768.0; // 正規化到 0-1 範圍
+
+    // 計算分貝值 (避免對數運算出現問題)
+    double db;
+    if (normalizedRms < 0.0001) {
+      // 非常小的聲音
+      db = -60.0; // 靜音
+    } else {
+      db = 20 * math.log(normalizedRms) / math.ln10;
+    }
+
+    // 確保分貝值在合理範圍內
+    db = db.clamp(-60.0, 0.0);
+
+    // 發送音訊幀事件，包含音量級別
+    onVadEvent?.call(VadEvent(
+      type: VadEventType.audioFrame,
+      timestamp: _getCurrentTimestamp(),
+      message: 'Audio frame at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+      audioData: Uint8List.fromList(data),
+      volumeLevel: db,
+    ));
+
+    // 將音訊數據轉換為 Float32List
+    final Float32List floatSamples = Float32List(int16List.length);
+    for (int i = 0; i < int16List.length; i++) {
+      floatSamples[i] = int16List[i] / 32768.0;
+    }
+
+    // 處理音訊數據
     _byteBuffer.addAll(data);
 
     while (_byteBuffer.length >= frameByteCount) {
@@ -166,7 +211,7 @@ class VadIteratorNonWeb implements VadIteratorBase {
 
     // Run model inference
     final inputOrt =
-    OrtValueTensor.createTensorWithDataList(data, [_batch, frameSamples]);
+        OrtValueTensor.createTensorWithDataList(data, [_batch, frameSamples]);
     final srOrt = OrtValueTensor.createTensorWithData(sampleRate);
     final hOrt = OrtValueTensor.createTensorWithDataList(_hide);
     final cOrt = OrtValueTensor.createTensorWithDataList(_cell);
@@ -203,7 +248,7 @@ class VadIteratorNonWeb implements VadIteratorBase {
           type: VadEventType.start,
           timestamp: _getCurrentTimestamp(),
           message:
-          'Speech started at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+              'Speech started at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
         ));
         speechBuffer.addAll(preSpeechBuffer);
         preSpeechBuffer.clear();
@@ -225,7 +270,7 @@ class VadIteratorNonWeb implements VadIteratorBase {
               type: VadEventType.end,
               timestamp: _getCurrentTimestamp(),
               message:
-              'Speech ended at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+                  'Speech ended at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
               audioData: _combineSpeechBuffer(),
             ));
           } else {
@@ -234,7 +279,7 @@ class VadIteratorNonWeb implements VadIteratorBase {
               type: VadEventType.misfire,
               timestamp: _getCurrentTimestamp(),
               message:
-              'Misfire detected at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+                  'Misfire detected at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
             ));
           }
           // Reset counters and buffers
@@ -261,22 +306,31 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Forcefully end speech detection on pause/stop event.
   @override
   void forceEndSpeech() {
-    if (speaking && speechPositiveFrameCount >= minSpeechFrames) {
-      if (isDebug) debugPrint('VAD Iterator: Forcing speech end.');
-      onVadEvent?.call(VadEvent(
-        type: VadEventType.end,
-        timestamp: _getCurrentTimestamp(),
-        message:
-        'Speech forcefully ended at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
-        audioData: _combineSpeechBuffer(),
-      ));
-      // Reset state
-      speaking = false;
-      redemptionCounter = 0;
-      speechPositiveFrameCount = 0;
-      speechBuffer.clear();
-      preSpeechBuffer.clear();
-    }
+    if (!speaking) return;
+
+    if (isDebug) debugPrint('VAD Iterator: Forcing speech end.');
+
+    // Generate end event
+    onVadEvent?.call(VadEvent(
+      type: VadEventType.end,
+      timestamp: _getCurrentTimestamp(),
+      message:
+          'Speech forcefully ended at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+      audioData: _combineSpeechBuffer(),
+      volumeLevel: null,
+    ));
+
+    // Reset state
+    speaking = false;
+    redemptionCounter = 0;
+    speechPositiveFrameCount = 0;
+    speechBuffer.clear();
+    preSpeechBuffer.clear();
+  }
+
+  @override
+  bool isSpeaking() {
+    return speaking;
   }
 
   void _addToPreSpeechBuffer(Float32List data) {
@@ -292,7 +346,7 @@ class VadIteratorNonWeb implements VadIteratorBase {
 
   Uint8List _combineSpeechBuffer() {
     final int totalLength =
-    speechBuffer.fold(0, (sum, frame) => sum + frame.length);
+        speechBuffer.fold(0, (sum, frame) => sum + frame.length);
     final Float32List combined = Float32List(totalLength);
     int offset = 0;
     for (var frame in speechBuffer) {
