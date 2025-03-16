@@ -20,6 +20,9 @@ abstract class VadHandlerBase {
   /// Stream of audio frame events
   Stream<Uint8List> get onAudioFrame;
 
+  /// Stream of silence events (triggered when no speech detected for a period)
+  Stream<void> get onSilence;
+
   /// Start listening for speech events
   void startListening(
       {double positiveSpeechThreshold = 0.5,
@@ -29,7 +32,8 @@ abstract class VadHandlerBase {
       int frameSamples = 1536,
       int minSpeechFrames = 3,
       bool submitUserSpeechOnPause = true,
-      int warmupFrames = 10});
+      int warmupFrames = 10,
+      int silenceThresholdSeconds = 5});
 
   /// Stop listening for speech events
   void stopListening();

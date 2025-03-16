@@ -46,9 +46,16 @@ class VadHandlerWeb implements VadHandlerBase {
       StreamController<String>.broadcast();
   final StreamController<Uint8List> _onAudioFrameController =
       StreamController<Uint8List>.broadcast();
+  final StreamController<void> _onSilenceController =
+      StreamController<void>.broadcast();
 
   /// Whether to print debug messages
   bool isDebug = false;
+
+  // 靜默檢測相關變數
+  Timer? _silenceTimer;
+  int _silenceThresholdSeconds = 5;
+  DateTime _lastSpeechTime = DateTime.now();
 
   /// Constructor
   VadHandlerWeb({required bool isDebug}) {
@@ -72,6 +79,35 @@ class VadHandlerWeb implements VadHandlerBase {
   Stream<Uint8List> get onAudioFrame => _onAudioFrameController.stream;
 
   @override
+  Stream<void> get onSilence => _onSilenceController.stream;
+
+  /// 啟動靜默計時器
+  void _startSilenceTimer() {
+    _silenceTimer?.cancel();
+    _silenceTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      final now = DateTime.now();
+      final silenceDuration = now.difference(_lastSpeechTime).inSeconds;
+
+      if (silenceDuration >= _silenceThresholdSeconds) {
+        // 用戶靜默時間超過閾值，發送事件
+        _onSilenceController.add(null);
+        if (isDebug) {
+          debugPrint(
+              'VadHandlerWeb: Silence detected after $_silenceThresholdSeconds seconds');
+        }
+
+        // 重置計時起點以避免連續發送過多事件
+        _lastSpeechTime = now;
+      }
+    });
+  }
+
+  /// 重置靜默計時器
+  void _resetSilenceTimer() {
+    _lastSpeechTime = DateTime.now();
+  }
+
+  @override
   void startListening(
       {double positiveSpeechThreshold = 0.5,
       double negativeSpeechThreshold = 0.35,
@@ -80,7 +116,8 @@ class VadHandlerWeb implements VadHandlerBase {
       int frameSamples = 1536,
       int minSpeechFrames = 3,
       bool submitUserSpeechOnPause = true,
-      int warmupFrames = 10}) {
+      int warmupFrames = 10,
+      int silenceThresholdSeconds = 5}) {
     if (isDebug) {
       debugPrint(
           'VadHandlerWeb: startListening: Calling startListeningImpl with parameters: '
@@ -91,8 +128,17 @@ class VadHandlerWeb implements VadHandlerBase {
           'frameSamples: $frameSamples, '
           'minSpeechFrames: $minSpeechFrames, '
           'submitUserSpeechOnPause: $submitUserSpeechOnPause, '
-          'warmupFrames: $warmupFrames');
+          'warmupFrames: $warmupFrames, '
+          'silenceThresholdSeconds: $silenceThresholdSeconds');
     }
+
+    // 設置靜默閾值
+    _silenceThresholdSeconds = silenceThresholdSeconds;
+
+    // 重置並啟動靜默計時器
+    _resetSilenceTimer();
+    _startSilenceTimer();
+
     startListeningImpl(
         positiveSpeechThreshold,
         negativeSpeechThreshold,
@@ -131,12 +177,16 @@ class VadHandlerWeb implements VadHandlerBase {
               debugPrint('Invalid VAD Data received: $eventData');
             }
           }
+          // 重置靜默計時器，用戶剛剛結束說話
+          _resetSilenceTimer();
           break;
         case 'onSpeechStart':
           if (isDebug) {
             debugPrint('VadHandlerWeb: onSpeechStart');
           }
           _onSpeechStartController.add(null);
+          // 重置靜默計時器，用戶開始說話
+          _resetSilenceTimer();
           break;
         case 'onVADMisfire':
           if (isDebug) {
@@ -171,11 +221,16 @@ class VadHandlerWeb implements VadHandlerBase {
     if (isDebug) {
       debugPrint('VadHandlerWeb: dispose');
     }
+    // 取消靜默計時器
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+
     _onSpeechEndController.close();
     _onSpeechStartController.close();
     _onVADMisfireController.close();
     _onErrorController.close();
     _onAudioFrameController.close();
+    _onSilenceController.close();
   }
 
   @override
@@ -183,6 +238,10 @@ class VadHandlerWeb implements VadHandlerBase {
     if (isDebug) {
       debugPrint('VadHandlerWeb: stopListening');
     }
+    // 取消靜默計時器
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+
     stopListeningImpl();
   }
 }

@@ -19,7 +19,10 @@ enum VadEventType {
   error,
 
   /// Audio frame event
-  audioFrame
+  audioFrame,
+
+  /// Silence event (when user has not spoken for a threshold period)
+  silence
 }
 
 /// VadEvent class

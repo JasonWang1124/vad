@@ -30,6 +30,12 @@ class VadHandlerNonWeb implements VadHandlerBase {
   final _onVADMisfireController = StreamController<void>.broadcast();
   final _onErrorController = StreamController<String>.broadcast();
   final _onAudioFrameController = StreamController<Uint8List>.broadcast();
+  final _onSilenceController = StreamController<void>.broadcast();
+
+  // 靜默檢測相關變數
+  Timer? _silenceTimer;
+  int _silenceThresholdSeconds = 5;
+  DateTime _lastSpeechTime = DateTime.now();
 
   @override
   Stream<List<double>> get onSpeechEnd => _onSpeechEndController.stream;
@@ -46,10 +52,39 @@ class VadHandlerNonWeb implements VadHandlerBase {
   @override
   Stream<Uint8List> get onAudioFrame => _onAudioFrameController.stream;
 
+  @override
+  Stream<void> get onSilence => _onSilenceController.stream;
+
   /// Constructor
   VadHandlerNonWeb(
       {required this.isDebug,
       this.modelPath = 'packages/vad/assets/models/silero_vad.onnx'});
+
+  /// 啟動靜默計時器
+  void _startSilenceTimer() {
+    _silenceTimer?.cancel();
+    _silenceTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      final now = DateTime.now();
+      final silenceDuration = now.difference(_lastSpeechTime).inSeconds;
+
+      if (silenceDuration >= _silenceThresholdSeconds) {
+        // 用戶靜默時間超過閾值，發送事件
+        _onSilenceController.add(null);
+        if (isDebug) {
+          debugPrint(
+              'VadHandlerNonWeb: Silence detected after $_silenceThresholdSeconds seconds');
+        }
+
+        // 重置計時起點以避免連續發送過多事件
+        _lastSpeechTime = now;
+      }
+    });
+  }
+
+  /// 重置靜默計時器
+  void _resetSilenceTimer() {
+    _lastSpeechTime = DateTime.now();
+  }
 
   /// Handle VAD event
   void _handleVadEvent(VadEvent event) {
@@ -60,6 +95,8 @@ class VadHandlerNonWeb implements VadHandlerBase {
     switch (event.type) {
       case VadEventType.start:
         _onSpeechStartController.add(null);
+        // 重置靜默計時器，因為檢測到用戶開始說話
+        _resetSilenceTimer();
         break;
       case VadEventType.end:
         if (event.audioData != null) {
@@ -67,6 +104,8 @@ class VadHandlerNonWeb implements VadHandlerBase {
           final floatSamples = int16List.map((e) => e / 32768.0).toList();
           _onSpeechEndController.add(floatSamples);
         }
+        // 重置靜默計時器，檢測到用戶剛剛結束說話
+        _resetSilenceTimer();
         break;
       case VadEventType.misfire:
         _onVADMisfireController.add(null);
@@ -93,7 +132,8 @@ class VadHandlerNonWeb implements VadHandlerBase {
       int frameSamples = 1536,
       int minSpeechFrames = 3,
       bool submitUserSpeechOnPause = true,
-      int warmupFrames = 10}) async {
+      int warmupFrames = 10,
+      int silenceThresholdSeconds = 5}) async {
     if (!_isInitialized) {
       _vadIterator = VadIterator.create(
           isDebug: isDebug,
@@ -116,6 +156,9 @@ class VadHandlerNonWeb implements VadHandlerBase {
       _vadIterator.setWarmupFrames(warmupFrames);
     }
 
+    // 設置靜默閾值
+    _silenceThresholdSeconds = silenceThresholdSeconds;
+
     bool hasPermission = await _audioRecorder.hasPermission();
     if (!hasPermission) {
       _onErrorController
@@ -125,6 +168,10 @@ class VadHandlerNonWeb implements VadHandlerBase {
       }
       return;
     }
+
+    // 重置並啟動靜默計時器
+    _resetSilenceTimer();
+    _startSilenceTimer();
 
     // Start recording with a stream
     final stream = await _audioRecorder.startStream(const RecordConfig(
@@ -145,6 +192,10 @@ class VadHandlerNonWeb implements VadHandlerBase {
   Future<void> stopListening() async {
     if (isDebug) debugPrint('stopListening');
     try {
+      // 停止靜默計時器
+      _silenceTimer?.cancel();
+      _silenceTimer = null;
+
       // Before stopping the audio stream, handle forced speech end if needed
       if (_submitUserSpeechOnPause && _vadIterator.isSpeaking()) {
         _vadIterator.forceEndSpeech();
@@ -170,6 +221,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
     _onVADMisfireController.close();
     _onErrorController.close();
     _onAudioFrameController.close();
+    _onSilenceController.close();
   }
 }
 

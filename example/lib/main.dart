@@ -83,6 +83,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int redemptionFrames = 8;
   bool submitUserSpeechOnPause = true;
   bool isWindowsPlatform = false;
+  int silenceThresholdSeconds = 5; // 新增靜默閾值參數
 
   // Audio player state
   Duration _duration = Duration.zero;
@@ -209,6 +210,20 @@ class _MyHomePageState extends State<MyHomePage> {
       // 如果正在說話，則將音訊幀添加到緩衝區
       if (_isSpeaking || submitUserSpeechOnPause) {
         _audioFrameBuffer.add(audioData);
+      }
+    });
+
+    // 新增對靜默事件的監聽
+    _vadHandler.onSilence.listen((_) {
+      debugPrint('Silence detected: 用戶已經5秒未說話');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('偵測到靜默：用戶5秒未說話'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     });
   }
@@ -523,10 +538,48 @@ class _MyHomePageState extends State<MyHomePage> {
                           preSpeechPadFrames: preSpeechPadFrames,
                           redemptionFrames: redemptionFrames,
                           warmupFrames: 15,
+                          silenceThresholdSeconds: silenceThresholdSeconds,
                         );
                       }
                     });
                   },
+                ),
+                const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '靜默閾值：$silenceThresholdSeconds 秒',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Slider(
+                      value: silenceThresholdSeconds.toDouble(),
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      label: silenceThresholdSeconds.toString(),
+                      onChanged: (double value) {
+                        setState(() {
+                          silenceThresholdSeconds = value.toInt();
+                          if (isListening) {
+                            _vadHandler.stopListening();
+                            _vadHandler.startListening(
+                              frameSamples: frameSamples,
+                              submitUserSpeechOnPause: submitUserSpeechOnPause,
+                              preSpeechPadFrames: preSpeechPadFrames,
+                              redemptionFrames: redemptionFrames,
+                              warmupFrames: 15,
+                              silenceThresholdSeconds: silenceThresholdSeconds,
+                            );
+                            isListening = true;
+                          }
+                        });
+                      },
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
@@ -544,6 +597,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           preSpeechPadFrames: preSpeechPadFrames,
                           redemptionFrames: redemptionFrames,
                           warmupFrames: 15,
+                          silenceThresholdSeconds: silenceThresholdSeconds,
                         );
                       }
                       isListening = !isListening;
