@@ -215,13 +215,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // 新增對靜默事件的監聽
     _vadHandler.onSilence.listen((_) {
-      debugPrint('Silence detected: 用戶已經5秒未說話');
+      debugPrint('Silence detected: 用戶已經${silenceThresholdSeconds}秒未說話');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('偵測到靜默：用戶5秒未說話'),
+          SnackBar(
+            content: Text('偵測到靜默：用戶${silenceThresholdSeconds}秒未說話'),
             backgroundColor: Colors.orange,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
