@@ -84,7 +84,7 @@ class VadHandlerWeb implements VadHandlerBase {
   /// 啟動靜默計時器
   void _startSilenceTimer() {
     _silenceTimer?.cancel();
-    _silenceTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    _silenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final now = DateTime.now();
       final silenceDuration = now.difference(_lastSpeechTime).inSeconds;
 
