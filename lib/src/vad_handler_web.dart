@@ -109,12 +109,12 @@ class VadHandlerWeb implements VadHandlerBase {
 
   @override
   void startListening(
-      {double positiveSpeechThreshold = 0.5,
-      double negativeSpeechThreshold = 0.35,
-      int preSpeechPadFrames = 1,
-      int redemptionFrames = 8,
+      {double positiveSpeechThreshold = 0.3,
+      double negativeSpeechThreshold = 0.2,
+      int preSpeechPadFrames = 2,
+      int redemptionFrames = 12,
       int frameSamples = 1536,
-      int minSpeechFrames = 3,
+      int minSpeechFrames = 2,
       bool submitUserSpeechOnPause = true,
       int warmupFrames = 10,
       int silenceThresholdSeconds = 5}) {

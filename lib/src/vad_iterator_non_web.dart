@@ -14,13 +14,13 @@ class VadIteratorNonWeb implements VadIteratorBase {
   bool isDebug = false;
 
   /// Threshold for positive speech detection.
-  double positiveSpeechThreshold = 0.5;
+  double positiveSpeechThreshold = 0.3;
 
   /// Threshold for negative speech detection.
-  double negativeSpeechThreshold = 0.35;
+  double negativeSpeechThreshold = 0.2;
 
   /// Number of frames for redemption after speech detection.
-  int redemptionFrames = 8;
+  int redemptionFrames = 12;
 
   /// Number of samples in a frame.
   /// Default is 1536 samples for 96ms at 16kHz sample rate.
@@ -30,10 +30,10 @@ class VadIteratorNonWeb implements VadIteratorBase {
   int frameSamples = 1536;
 
   /// Number of frames to pad before speech detection.
-  int preSpeechPadFrames = 1;
+  int preSpeechPadFrames = 2;
 
   /// Minimum number of speech frames to consider as valid speech.
-  int minSpeechFrames = 3;
+  int minSpeechFrames = 2;
 
   /// Sample rate of the audio data.
   int sampleRate = 16000;
