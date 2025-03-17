@@ -5,6 +5,7 @@ import 'package:vad/src/vad_handler_base.dart';
 import 'package:vad/src/vad_iterator.dart';
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'vad_event.dart';
 import 'vad_iterator_base.dart';
 
@@ -31,6 +32,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
   final _onErrorController = StreamController<String>.broadcast();
   final _onAudioFrameController = StreamController<Uint8List>.broadcast();
   final _onSilenceController = StreamController<void>.broadcast();
+  final _onVoiceChangeController = StreamController<double>.broadcast();
 
   // 靜默檢測相關變數
   Timer? _silenceTimer;
@@ -54,6 +56,9 @@ class VadHandlerNonWeb implements VadHandlerBase {
 
   @override
   Stream<void> get onSilence => _onSilenceController.stream;
+
+  @override
+  Stream<double> get onVoiceChange => _onVoiceChangeController.stream;
 
   /// Constructor
   VadHandlerNonWeb(
@@ -116,6 +121,11 @@ class VadHandlerNonWeb implements VadHandlerBase {
       case VadEventType.audioFrame:
         if (event.audioData != null) {
           _onAudioFrameController.add(event.audioData!);
+        }
+        break;
+      case VadEventType.voiceChange:
+        if (event.volumeLevel != null) {
+          _onVoiceChangeController.add(event.volumeLevel!);
         }
         break;
       default:
@@ -184,8 +194,34 @@ class VadHandlerNonWeb implements VadHandlerBase {
         noiseSuppress: true));
 
     _audioStreamSubscription = stream.listen((data) async {
+      // 計算分貝值並發送到 stream
+      double db = calculateDecibelRMS(Uint8List.fromList(data));
+      _onVoiceChangeController.add(db);
       await _vadIterator.processAudioData(data);
     });
+  }
+
+  /// 計算音訊資料的分貝值
+  double calculateDecibelRMS(Uint8List audioData) {
+    final int16List = audioData.buffer.asInt16List();
+    double sum = 0;
+    for (int i = 0; i < int16List.length; i++) {
+      sum += int16List[i] * int16List[i];
+    }
+    final double rms = sum > 0 ? math.sqrt(sum / int16List.length) : 0;
+    final double normalizedRms = rms / 32768.0; // 正規化到 0-1 範圍
+
+    // 計算分貝值 (避免對數運算出現問題)
+    double db;
+    if (normalizedRms < 0.0001) {
+      // 非常小的聲音
+      db = -60.0; // 靜音
+    } else {
+      db = 20 * math.log(normalizedRms) / math.ln10;
+    }
+
+    // 確保分貝值在合理範圍內
+    return db.clamp(-60.0, 0.0);
   }
 
   @override
@@ -222,6 +258,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
     _onErrorController.close();
     _onAudioFrameController.close();
     _onSilenceController.close();
+    _onVoiceChangeController.close();
   }
 }
 

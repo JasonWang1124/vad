@@ -23,6 +23,9 @@ abstract class VadHandlerBase {
   /// Stream of silence events (triggered when no speech detected for a period)
   Stream<void> get onSilence;
 
+  /// Stream of voice volume changes (in dB)
+  Stream<double> get onVoiceChange;
+
   /// Start listening for speech events
   void startListening(
       {double positiveSpeechThreshold = 0.5,

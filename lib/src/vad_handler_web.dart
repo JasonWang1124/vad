@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'vad_handler_base.dart';
 
@@ -48,6 +49,8 @@ class VadHandlerWeb implements VadHandlerBase {
       StreamController<Uint8List>.broadcast();
   final StreamController<void> _onSilenceController =
       StreamController<void>.broadcast();
+  final StreamController<double> _onVoiceChangeController =
+      StreamController<double>.broadcast();
 
   /// Whether to print debug messages
   bool isDebug = false;
@@ -80,6 +83,9 @@ class VadHandlerWeb implements VadHandlerBase {
 
   @override
   Stream<void> get onSilence => _onSilenceController.stream;
+
+  @override
+  Stream<double> get onVoiceChange => _onVoiceChangeController.stream;
 
   /// 啟動靜默計時器
   void _startSilenceTimer() {
@@ -207,6 +213,26 @@ class VadHandlerWeb implements VadHandlerBase {
             _onAudioFrameController.add(audioData);
           }
           break;
+        case 'onVoiceChange':
+          if (eventData.containsKey('volume')) {
+            final double amplitude = (eventData['volume'] as num).toDouble();
+
+            // Convert to decibels with adjusted reference level
+            const double maxPossibleValue =
+                32768.0; // Maximum possible value for 16-bit audio
+            const double referenceLevel =
+                maxPossibleValue / 100; // Using 1% of max as reference
+
+            // Avoid taking log of zero
+            if (amplitude < 1) {
+              _onVoiceChangeController.add(-60.0);
+              return;
+            }
+
+            double db = 20 * math.log(amplitude / referenceLevel) / math.ln10;
+            _onVoiceChangeController.add(db.clamp(-60.0, 0.0));
+          }
+          break;
         default:
           debugPrint("Unknown event: $eventType");
       }
@@ -231,6 +257,7 @@ class VadHandlerWeb implements VadHandlerBase {
     _onErrorController.close();
     _onAudioFrameController.close();
     _onSilenceController.close();
+    _onVoiceChangeController.close();
   }
 
   @override
