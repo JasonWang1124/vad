@@ -39,6 +39,7 @@ dependencies:
   audioplayers: ^6.3.0
   vad:
     path: ../
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

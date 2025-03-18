@@ -6,6 +6,9 @@ import 'package:vad_example/recording.dart';
 import 'package:vad_example/audio_utils.dart';
 import 'package:vad_example/vad_settings_dialog.dart';
 import 'package:vad_example/ui/volume_indicator.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class VadUIController {
   Function? scrollToBottom;
@@ -142,6 +145,60 @@ class _VadUIState extends State<VadUI> {
     }
   }
 
+  Future<void> _saveRecording(Recording recording) async {
+    if (recording.samples == null || recording.samples!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('無法儲存：音檔為空')),
+      );
+      return;
+    }
+
+    try {
+      // 檢查權限
+      if (Platform.isAndroid || Platform.isIOS) {
+        var status = await Permission.storage.status;
+        if (!status.isGranted) {
+          status = await Permission.storage.request();
+          if (!status.isGranted) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('需要儲存權限才能保存錄音')),
+            );
+            return;
+          }
+        }
+      }
+
+      // 創建檔案名稱，使用時間戳
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'vad_recording_$timestamp.wav';
+
+      // 設定檔案路徑
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/$fileName';
+
+      // 將音訊樣本轉換為WAV格式
+      final wavData = AudioUtils.float32ToWav(recording.samples!);
+
+      // 寫入檔案
+      final file = File(filePath);
+      await file.writeAsBytes(wavData);
+
+      // 顯示成功訊息
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('錄音已儲存至: $filePath'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('儲存失敗: $e')),
+      );
+    }
+  }
+
   Widget _buildRecordingCard(Recording recording, int index) {
     Color cardColor;
     IconData icon;
@@ -188,6 +245,52 @@ class _VadUIState extends State<VadUI> {
         break;
     }
 
+    // 針對含有音頻樣本的錄音項目，添加儲存按鈕
+    List<Widget> actions = [];
+
+    if (canPlay) {
+      actions.add(
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            icon: Icon(
+              _isPlaying && _currentlyPlayingIndex == index
+                  ? Icons.pause
+                  : Icons.play_arrow,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              _playRecording(recording, index);
+            },
+          ),
+        ),
+      );
+
+      // 新增儲存按鈕
+      actions.add(
+        Container(
+          margin: const EdgeInsets.only(left: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            icon: const Icon(
+              Icons.save_alt,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              _saveRecording(recording);
+            },
+            tooltip: '另存新檔',
+          ),
+        ),
+      );
+    }
+
     return Card(
       color: cardColor,
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -220,25 +323,14 @@ class _VadUIState extends State<VadUI> {
             color: Colors.white.withOpacity(0.7),
           ),
         ),
-        trailing: canPlay
-            ? Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: IconButton(
-                  icon: Icon(
-                    _isPlaying && _currentlyPlayingIndex == index
-                        ? Icons.pause
-                        : Icons.play_arrow,
-                    color: Colors.white,
-                  ),
-                  onPressed: () {
-                    _playRecording(recording, index);
-                  },
-                ),
-              )
-            : null,
+        trailing: actions.isEmpty
+            ? null
+            : (actions.length == 1
+                ? actions.first
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: actions,
+                  )),
       ),
     );
   }
