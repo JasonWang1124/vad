@@ -34,7 +34,13 @@ class VadHandlerNonWeb implements VadHandlerBase {
 
   final _onSpeechEndController = StreamController<List<double>>.broadcast();
   final _onFrameProcessedController = StreamController<
-      ({double isSpeech, double notSpeech, List<double> frame})>.broadcast();
+      ({
+        double isSpeech,
+        double notSpeech,
+        List<double> frame,
+        double decibels,
+        int volumeLevel
+      })>.broadcast();
   final _onSpeechStartController = StreamController<void>.broadcast();
   final _onRealSpeechStartController = StreamController<void>.broadcast();
   final _onVADMisfireController = StreamController<void>.broadcast();
@@ -44,8 +50,14 @@ class VadHandlerNonWeb implements VadHandlerBase {
   Stream<List<double>> get onSpeechEnd => _onSpeechEndController.stream;
 
   @override
-  Stream<({double isSpeech, double notSpeech, List<double> frame})>
-      get onFrameProcessed => _onFrameProcessedController.stream;
+  Stream<
+      ({
+        double isSpeech,
+        double notSpeech,
+        List<double> frame,
+        double decibels,
+        int volumeLevel
+      })> get onFrameProcessed => _onFrameProcessedController.stream;
 
   @override
   Stream<void> get onSpeechStart => _onSpeechStartController.stream;
@@ -87,7 +99,9 @@ class VadHandlerNonWeb implements VadHandlerBase {
           _onFrameProcessedController.add((
             isSpeech: event.probabilities!.isSpeech,
             notSpeech: event.probabilities!.notSpeech,
-            frame: event.frameData!
+            frame: event.frameData!,
+            decibels: event.probabilities!.decibels,
+            volumeLevel: event.probabilities!.volumeLevel
           ));
         }
         break;

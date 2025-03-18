@@ -30,8 +30,18 @@ class SpeechProbabilities {
   /// Probability of not speech
   final double notSpeech;
 
+  /// Audio volume in decibels (dB)
+  final double decibels;
+
+  /// Audio volume level on a scale of 0-10
+  final int volumeLevel;
+
   /// Constructor
-  SpeechProbabilities({required this.isSpeech, required this.notSpeech});
+  SpeechProbabilities(
+      {required this.isSpeech,
+      required this.notSpeech,
+      this.decibels = 0.0,
+      this.volumeLevel = 0});
 }
 
 /// VadEvent class

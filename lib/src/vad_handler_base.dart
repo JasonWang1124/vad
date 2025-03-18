@@ -8,8 +8,14 @@ abstract class VadHandlerBase {
   Stream<List<double>> get onSpeechEnd;
 
   /// Stream of frame processed events
-  Stream<({double isSpeech, double notSpeech, List<double> frame})>
-      get onFrameProcessed;
+  Stream<
+      ({
+        double isSpeech,
+        double notSpeech,
+        List<double> frame,
+        double decibels,
+        int volumeLevel
+      })> get onFrameProcessed;
 
   /// Stream of speech start events
   Stream<void> get onSpeechStart;

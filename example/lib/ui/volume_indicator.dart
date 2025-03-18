@@ -1,0 +1,118 @@
+import 'package:flutter/material.dart';
+
+/// 音量指示器組件，根據音量級別（0-10）顯示不同的視覺效果
+class VolumeIndicator extends StatelessWidget {
+  /// 當前音量級別，範圍0-10
+  final int volumeLevel;
+
+  /// 指示器的寬度
+  final double width;
+
+  /// 指示器的高度
+  final double height;
+
+  /// 是否啟用動畫效果
+  final bool animate;
+
+  /// 構造函數
+  const VolumeIndicator({
+    super.key,
+    required this.volumeLevel,
+    this.width = 200,
+    this.height = 40,
+    this.animate = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.black12,
+        borderRadius: BorderRadius.circular(height / 2),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(10, (index) {
+          final bool isActive = index < volumeLevel;
+
+          // 根據音量級別選擇顏色
+          Color barColor;
+          if (isActive) {
+            if (index < 3) {
+              barColor = Colors.green; // 低音量：綠色
+            } else if (index < 7) {
+              barColor = Colors.orange; // 中音量：橙色
+            } else {
+              barColor = Colors.red; // 高音量：紅色
+            }
+          } else {
+            barColor = Colors.grey.withOpacity(0.3); // 非活動狀態：灰色
+          }
+
+          // 根據索引計算條的高度，使中間的條更高
+          final double heightFactor =
+              0.5 + (0.5 * (index < 5 ? index : 9 - index)) / 4;
+
+          return AnimatedContainer(
+            duration:
+                animate ? const Duration(milliseconds: 200) : Duration.zero,
+            width: (width - 40) / 10,
+            height: height * heightFactor,
+            decoration: BoxDecoration(
+              color: barColor,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// 一個帶有音量級別文字顯示的音量指示器
+class VolumeIndicatorWithLabel extends StatelessWidget {
+  /// 當前音量級別，範圍0-10
+  final int volumeLevel;
+
+  /// 分貝值
+  final double decibels;
+
+  /// 指示器的寬度
+  final double width;
+
+  /// 指示器的高度
+  final double height;
+
+  /// 構造函數
+  const VolumeIndicatorWithLabel({
+    super.key,
+    required this.volumeLevel,
+    required this.decibels,
+    this.width = 200,
+    this.height = 40,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        VolumeIndicator(
+          volumeLevel: volumeLevel,
+          width: width,
+          height: height,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '音量級別: $volumeLevel/10 (${decibels.toStringAsFixed(1)} dB)',
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}

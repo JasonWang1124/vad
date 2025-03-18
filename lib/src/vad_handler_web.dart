@@ -6,6 +6,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'package:flutter/foundation.dart';
 import 'vad_handler_base.dart';
+import 'dart:math';
 
 /// Start listening for voice activity detection (JS-binding)
 @JS('startListeningImpl')
@@ -42,13 +43,20 @@ class VadHandlerWeb implements VadHandlerBase {
   final StreamController<List<double>> _onSpeechEndController =
       StreamController<List<double>>.broadcast();
   final StreamController<
-          ({double isSpeech, double notSpeech, List<double> frame})>
-      _onFrameProcessedController = StreamController<
-          ({
-            double isSpeech,
-            double notSpeech,
-            List<double> frame
-          })>.broadcast();
+      ({
+        double isSpeech,
+        double notSpeech,
+        List<double> frame,
+        double decibels,
+        int volumeLevel
+      })> _onFrameProcessedController = StreamController<
+      ({
+        double isSpeech,
+        double notSpeech,
+        List<double> frame,
+        double decibels,
+        int volumeLevel
+      })>.broadcast();
   final StreamController<void> _onSpeechStartController =
       StreamController<void>.broadcast();
   final StreamController<void> _onRealSpeechStartController =
@@ -71,8 +79,14 @@ class VadHandlerWeb implements VadHandlerBase {
   Stream<List<double>> get onSpeechEnd => _onSpeechEndController.stream;
 
   @override
-  Stream<({double isSpeech, double notSpeech, List<double> frame})>
-      get onFrameProcessed => _onFrameProcessedController.stream;
+  Stream<
+      ({
+        double isSpeech,
+        double notSpeech,
+        List<double> frame,
+        double decibels,
+        int volumeLevel
+      })> get onFrameProcessed => _onFrameProcessedController.stream;
 
   @override
   Stream<void> get onSpeechStart => _onSpeechStartController.stream;
@@ -165,13 +179,50 @@ class VadHandlerWeb implements VadHandlerBase {
                 .map((e) => (e as num).toDouble())
                 .toList();
 
-            if (isDebug) {
-              debugPrint(
-                  'VadHandlerWeb: onFrameProcessed: isSpeech: $isSpeech, notSpeech: $notSpeech');
+            // 計算分貝值和音量級別
+            // 注意：Web版本中可能不會有精確的分貝計算
+            double decibels = 0.0;
+            int volumeLevel = 0;
+
+            // 如果frame不為空，計算粗略的分貝值和音量級別
+            if (frame.isNotEmpty) {
+              double sumOfSquares = 0.0;
+              for (var sample in frame) {
+                sumOfSquares += sample * sample;
+              }
+              final double rms = sqrt(sumOfSquares / frame.length);
+
+              if (rms > 0.0) {
+                decibels = 20.0 * log(rms) / ln10;
+
+                // 映射到0-10級別
+                const double minDb = -60.0;
+                const double maxDb = -10.0;
+
+                if (decibels < minDb) {
+                  volumeLevel = 0;
+                } else if (decibels > maxDb) {
+                  volumeLevel = 10;
+                } else {
+                  final double normalizedDb =
+                      (decibels - minDb) / (maxDb - minDb);
+                  volumeLevel = (normalizedDb * 10).round().clamp(0, 10);
+                }
+              }
             }
 
-            _onFrameProcessedController
-                .add((isSpeech: isSpeech, notSpeech: notSpeech, frame: frame));
+            if (isDebug) {
+              debugPrint(
+                  'VadHandlerWeb: onFrameProcessed: isSpeech: $isSpeech, notSpeech: $notSpeech, decibels: $decibels, volumeLevel: $volumeLevel');
+            }
+
+            _onFrameProcessedController.add((
+              isSpeech: isSpeech,
+              notSpeech: notSpeech,
+              frame: frame,
+              decibels: decibels,
+              volumeLevel: volumeLevel
+            ));
           } else {
             if (isDebug) {
               debugPrint('Invalid frame data received: $eventData');

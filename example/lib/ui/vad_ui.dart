@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart' as audioplayers;
 import 'package:vad_example/recording.dart';
 import 'package:vad_example/audio_utils.dart';
 import 'package:vad_example/vad_settings_dialog.dart';
+import 'package:vad_example/ui/volume_indicator.dart';
 
 class VadUIController {
   Function? scrollToBottom;
@@ -18,6 +19,8 @@ class VadUI extends StatefulWidget {
   final List<Recording> recordings;
   final bool isListening;
   final bool isSpeechDetected;
+  final int volumeLevel;
+  final double decibels;
   final VadSettings settings;
   final Function() onStartListening;
   final Function() onStopListening;
@@ -31,6 +34,8 @@ class VadUI extends StatefulWidget {
     required this.recordings,
     required this.isListening,
     required this.isSpeechDetected,
+    required this.volumeLevel,
+    required this.decibels,
     required this.settings,
     required this.onStartListening,
     required this.onStopListening,
@@ -355,6 +360,16 @@ class _VadUIState extends State<VadUI> {
                         horizontal: 24, vertical: 12),
                   ),
                 ),
+
+                // 添加音量指示器
+                if (widget.isListening) ...[
+                  const SizedBox(height: 16),
+                  VolumeIndicatorWithLabel(
+                    volumeLevel: widget.volumeLevel,
+                    decibels: widget.decibels,
+                    width: MediaQuery.of(context).size.width - 32,
+                  ),
+                ],
               ],
             ),
           ),

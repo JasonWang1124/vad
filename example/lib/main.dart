@@ -42,6 +42,9 @@ class _VadManagerState extends State<VadManager> {
   late VadSettings settings;
   final VadUIController _uiController = VadUIController();
 
+  int currentVolumeLevel = 0;
+  double currentDecibels = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -142,12 +145,19 @@ class _VadManagerState extends State<VadManager> {
     _vadHandler.onFrameProcessed.listen((frameData) {
       final isSpeech = frameData.isSpeech;
       final notSpeech = frameData.notSpeech;
+      final decibels = frameData.decibels;
+      final volumeLevel = frameData.volumeLevel;
       final firstFiveSamples = frameData.frame.length >= 5
           ? frameData.frame.sublist(0, 5)
           : frameData.frame;
 
+      setState(() {
+        currentVolumeLevel = volumeLevel;
+        currentDecibels = decibels;
+      });
+
       debugPrint(
-          'Frame processed - isSpeech: $isSpeech, notSpeech: $notSpeech');
+          'Frame processed - isSpeech: $isSpeech, notSpeech: $notSpeech, decibels: $decibels, volumeLevel: $volumeLevel');
       debugPrint('First few audio samples: $firstFiveSamples');
     });
 
@@ -216,6 +226,8 @@ class _VadManagerState extends State<VadManager> {
       recordings: recordings,
       isListening: isListening,
       isSpeechDetected: isSpeechDetected,
+      volumeLevel: currentVolumeLevel,
+      decibels: currentDecibels,
       settings: settings,
       onStartListening: _startListening,
       onStopListening: _stopListening,

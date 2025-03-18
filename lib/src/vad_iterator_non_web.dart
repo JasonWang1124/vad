@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -179,6 +180,12 @@ class VadIteratorNonWeb implements VadIteratorBase {
     // Create a copy of the frame data for the event
     final frameData = data.toList();
 
+    // 計算分貝值
+    final double decibels = _calculateDecibels(frameData);
+
+    // 將分貝值映射到0-10的音量級別，並過濾過大或過小的聲音
+    final int volumeLevel = _calculateVolumeLevel(decibels);
+
     // Emit the frame processed event
     onVadEvent?.call(VadEvent(
       type: VadEventType.frameProcessed,
@@ -186,7 +193,10 @@ class VadIteratorNonWeb implements VadIteratorBase {
       message:
           'Frame processed at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
       probabilities: SpeechProbabilities(
-          isSpeech: speechProb, notSpeech: 1.0 - speechProb),
+          isSpeech: speechProb,
+          notSpeech: 1.0 - speechProb,
+          decibels: decibels,
+          volumeLevel: volumeLevel),
       frameData: frameData,
     ));
 
@@ -434,6 +444,45 @@ class VadIteratorNonWeb implements VadIteratorBase {
     final buffer = data.buffer;
     final int16List = Int16List.view(buffer);
     return int16List.map((e) => e / 32768.0).toList();
+  }
+
+  /// 計算音頻幀的分貝值
+  double _calculateDecibels(List<double> audioFrame) {
+    if (audioFrame.isEmpty) return 0.0;
+
+    // 計算RMS (Root Mean Square)值
+    double sumOfSquares = 0.0;
+    for (var sample in audioFrame) {
+      sumOfSquares += sample * sample;
+    }
+    final double rms = sqrt(sumOfSquares / audioFrame.length);
+
+    // 防止對0取log
+    if (rms <= 0.0) return 0.0;
+
+    // 計算分貝值 (參考值為1.0，這是標準化音頻數據的最大值)
+    // 標準公式：20 * log10(振幅/參考振幅)
+    return 20.0 * log(rms) / ln10;
+  }
+
+  /// 將分貝值映射到0-10的音量級別並過濾噪音
+  int _calculateVolumeLevel(double decibels) {
+    // 設定閾值，過濾太大或太小的聲音
+    // 典型的人聲大約在-60dB到0dB之間
+    const double minDb = -60.0; // 最小有效分貝
+    const double maxDb = -10.0; // 最大有效分貝
+
+    // 如果低於最小閾值，視為背景噪音
+    if (decibels < minDb) return 0;
+
+    // 如果高於最大閾值，可能是噪音或太接近麥克風
+    if (decibels > maxDb) return 10;
+
+    // 將-60dB到-10dB的範圍映射到0-10級別
+    final double normalizedDb = (decibels - minDb) / (maxDb - minDb);
+    final int level = (normalizedDb * 10).round().clamp(0, 10);
+
+    return level;
   }
 }
 
