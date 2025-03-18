@@ -50,6 +50,7 @@ class _VadManagerState extends State<VadManager> {
   Timer? _silenceTimer;
   bool _isSilent = true;
   DateTime? _silenceStartTime;
+  bool _isVadInitialized = false; // 新增：追蹤VAD是否已初始化
 
   // 靜音閥值回調
   final _onSilenceThresholdReachedController =
@@ -65,8 +66,30 @@ class _VadManagerState extends State<VadManager> {
   }
 
   void _initializeVad() {
+    // 如果已經初始化過，先釋放資源
+    if (_isVadInitialized) {
+      _vadHandler.dispose();
+    }
+
     _vadHandler = VadHandler.create(isDebug: true);
     _setupVadHandler();
+    _isVadInitialized = true;
+
+    // 設定更高的靈敏度
+    setState(() {
+      settings = settings.copy()
+        ..positiveSpeechThreshold = 0.2 // 降低正向閾值（原為0.5）
+        ..negativeSpeechThreshold = 0.15 // 降低負向閾值（原為0.35）
+        ..minSpeechFrames = 4 // 減少最小語音幀數（原為8）
+        ..redemptionFrames = 30; // 增加贖回幀數（提高容錯度）
+    });
+
+    // 重置所有狀態
+    setState(() {
+      isSpeechDetected = false;
+      _isSilent = true;
+      _silenceStartTime = DateTime.now();
+    });
   }
 
   void _startListening() {
@@ -101,6 +124,9 @@ class _VadManagerState extends State<VadManager> {
       isListening = false;
       isSpeechDetected = false;
     });
+
+    // 確保在停止時重置所有相關狀態
+    _resetSilenceDetection();
   }
 
   Future<void> _manualStopWithAudio() async {
@@ -165,6 +191,18 @@ class _VadManagerState extends State<VadManager> {
       debugPrint('Speech ended, recording added.');
     });
 
+    _vadHandler.onVADMisfire.listen((_) {
+      setState(() {
+        recordings.add(Recording(type: RecordingType.misfire));
+        isSpeechDetected = false;
+      });
+      _uiController.scrollToBottom?.call();
+      debugPrint('VAD misfire detected.');
+
+      // 只重置狀態，不停止服務
+      _resetSilenceDetection();
+    });
+
     _vadHandler.onFrameProcessed.listen((frameData) {
       final isSpeech = frameData.isSpeech;
       final notSpeech = frameData.notSpeech;
@@ -199,14 +237,6 @@ class _VadManagerState extends State<VadManager> {
       debugPrint(
           'Frame processed - isSpeech: $isSpeech, notSpeech: $notSpeech, decibels: $decibels, volumeLevel: $volumeLevel');
       debugPrint('First few audio samples: $firstFiveSamples');
-    });
-
-    _vadHandler.onVADMisfire.listen((_) {
-      setState(() {
-        recordings.add(Recording(type: RecordingType.misfire));
-      });
-      _uiController.scrollToBottom?.call();
-      debugPrint('VAD misfire detected.');
     });
 
     _vadHandler.onError.listen((String message) {
