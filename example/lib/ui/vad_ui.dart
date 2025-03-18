@@ -17,9 +17,11 @@ class VadUIController {
 class VadUI extends StatefulWidget {
   final List<Recording> recordings;
   final bool isListening;
+  final bool isSpeechDetected;
   final VadSettings settings;
   final Function() onStartListening;
   final Function() onStopListening;
+  final Function() onManualStopWithAudio;
   final Function() onRequestMicrophonePermission;
   final Function() onShowSettingsDialog;
   final VadUIController? controller;
@@ -28,9 +30,11 @@ class VadUI extends StatefulWidget {
     super.key,
     required this.recordings,
     required this.isListening,
+    required this.isSpeechDetected,
     required this.settings,
     required this.onStartListening,
     required this.onStopListening,
+    required this.onManualStopWithAudio,
     required this.onRequestMicrophonePermission,
     required this.onShowSettingsDialog,
     this.controller,
@@ -160,8 +164,9 @@ class _VadUIState extends State<VadUI> {
 
   Widget _buildRecordingItem(Recording recording, int index) {
     final bool isCurrentlyPlaying = _currentlyPlayingIndex == index;
-    final bool hasAudio =
-        recording.type == RecordingType.speechEnd && recording.samples != null;
+    final bool hasAudio = (recording.type == RecordingType.speechEnd ||
+            recording.type == RecordingType.manualStop) &&
+        recording.samples != null;
 
     // Icon and color based on recording type
     IconData typeIcon;
@@ -188,6 +193,13 @@ class _VadUIState extends State<VadUI> {
         iconColor = Colors.blue[100]!;
         backgroundColor = Colors.blue[900]!;
         typeTitle = 'Recorded Speech';
+        break;
+      case RecordingType.manualStop:
+        typeIcon =
+            isCurrentlyPlaying && _isPlaying ? Icons.pause : Icons.play_arrow;
+        iconColor = Colors.blue[100]!;
+        backgroundColor = Colors.purple;
+        typeTitle = 'Manually Stopped Speech';
         break;
       case RecordingType.misfire:
         typeIcon = Icons.warning_amber_rounded;
@@ -281,19 +293,73 @@ class _VadUIState extends State<VadUI> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("VAD Example"),
-        backgroundColor: Colors.black,
-        elevation: 0,
+        title: const Text('VAD Demo'),
+        centerTitle: true,
         actions: [
           IconButton(
-            padding: const EdgeInsets.symmetric(horizontal: 48.0),
             icon: const Icon(Icons.settings),
             onPressed: widget.onShowSettingsDialog,
+            tooltip: 'Settings',
           ),
         ],
       ),
       body: Column(
         children: [
+          // Controls
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed:
+                          widget.isListening ? null : widget.onStartListening,
+                      icon: const Icon(Icons.mic),
+                      label: const Text('Start'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: widget.isListening
+                          ? (widget.isSpeechDetected
+                              ? widget.onManualStopWithAudio
+                              : widget.onStopListening)
+                          : null,
+                      icon: Icon(
+                          widget.isSpeechDetected ? Icons.save : Icons.stop),
+                      label: Text(
+                          widget.isSpeechDetected ? 'Save & Stop' : 'Stop'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            widget.isSpeechDetected ? Colors.blue : Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: widget.onRequestMicrophonePermission,
+                  icon: const Icon(Icons.settings_voice),
+                  label: const Text('Request Mic Permission'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Recording list
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -302,59 +368,6 @@ class _VadUIState extends State<VadUI> {
               itemBuilder: (context, index) {
                 return _buildRecordingItem(widget.recordings[index], index);
               },
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: Colors.black,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  spreadRadius: 1,
-                  blurRadius: 10,
-                  offset: const Offset(0, -1),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Center(
-                      child: Text(
-                        'Model: ${widget.settings.model == RecordingModel.v5 ? "v5" : "v4 (Legacy)"}',
-                        style: TextStyle(color: Colors.grey[400]),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Center(
-                      child: Text(
-                        'Frame: ${widget.settings.calculateFrameTime()}',
-                        style: TextStyle(color: Colors.grey[400]),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: widget.isListening
-                      ? widget.onStopListening
-                      : widget.onStartListening,
-                  icon: Icon(widget.isListening ? Icons.stop : Icons.mic),
-                  label: Text(widget.isListening
-                      ? "Stop Listening"
-                      : "Start Listening"),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: widget.onRequestMicrophonePermission,
-                  icon: const Icon(Icons.settings_voice),
-                  label: const Text("Request Microphone Permission"),
-                ),
-              ],
             ),
           ),
         ],

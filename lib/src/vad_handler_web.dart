@@ -225,6 +225,17 @@ class VadHandlerWeb implements VadHandlerBase {
     }
     stopListeningImpl();
   }
+
+  @override
+  Future<List<double>?> manualStopWithAudio() async {
+    if (isDebug) {
+      debugPrint('VadHandlerWeb: manualStopWithAudio');
+    }
+    // Web版本中需要調用JS API來實現手動停止並獲取音頻
+    // 由於當前的JS方法沒有提供此功能，這裡我們只停止監聽
+    stopListeningImpl();
+    return null;
+  }
 }
 
 /// Create a VAD handler for the web

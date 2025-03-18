@@ -368,6 +368,42 @@ class VadIteratorNonWeb implements VadIteratorBase {
     }
   }
 
+  /// Manually end speech detection and return audio data
+  @override
+  Future<List<double>?> manualEndSpeech() async {
+    if (speaking && speechPositiveFrameCount >= minSpeechFrames) {
+      if (isDebug) debugPrint('VAD Iterator: Manually ending speech.');
+
+      // Combine speech buffer
+      final audioData = _combineSpeechBuffer();
+
+      // Convert audio data to float list
+      final buffer = audioData.buffer;
+      final int16List = Int16List.view(buffer);
+      final floatSamples = int16List.map((e) => e / 32768.0).toList();
+
+      // Emit event
+      onVadEvent?.call(VadEvent(
+        type: VadEventType.end,
+        timestamp: _getCurrentTimestamp(),
+        message:
+            'Speech manually ended at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+        audioData: audioData,
+      ));
+
+      // Reset state
+      speaking = false;
+      redemptionCounter = 0;
+      speechPositiveFrameCount = 0;
+      speechBuffer.clear();
+      preSpeechBuffer.clear();
+
+      return floatSamples;
+    }
+
+    return null;
+  }
+
   void _addToPreSpeechBuffer(Float32List data) {
     preSpeechBuffer.add(data);
     while (preSpeechBuffer.length > preSpeechPadFrames) {

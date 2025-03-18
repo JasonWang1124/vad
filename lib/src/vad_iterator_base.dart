@@ -24,6 +24,11 @@ abstract class VadIteratorBase {
 
   /// Forcefully end speech detection on pause/stop event.
   void forceEndSpeech();
+
+  /// Manually end speech detection and return audio data
+  /// Similar to forceEndSpeech but returns the audio data
+  /// Returns null if no speech was detected
+  Future<List<double>?> manualEndSpeech();
 }
 
 /// Callback for VAD events.

@@ -11,6 +11,11 @@ class VadIteratorWeb implements VadIteratorBase {
   }
 
   @override
+  Future<List<double>?> manualEndSpeech() {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> initModel(String modelPath) {
     throw UnimplementedError();
   }

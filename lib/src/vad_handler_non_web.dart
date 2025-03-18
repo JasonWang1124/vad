@@ -182,6 +182,28 @@ class VadHandlerNonWeb implements VadHandlerBase {
     }
   }
 
+  /// Manually stop speech detection and get audio data
+  @override
+  Future<List<double>?> manualStopWithAudio() async {
+    if (isDebug) debugPrint('manualStopWithAudio');
+    try {
+      // Get audio data from the VAD iterator
+      final audioData = await _vadIterator.manualEndSpeech();
+
+      // Stop listening
+      await _audioStreamSubscription?.cancel();
+      _audioStreamSubscription = null;
+      await _audioRecorder.stop();
+      _vadIterator.reset();
+
+      return audioData;
+    } catch (e) {
+      _onErrorController.add(e.toString());
+      if (isDebug) debugPrint('Error manually stopping with audio: $e');
+      return null;
+    }
+  }
+
   @override
   void dispose() {
     if (isDebug) debugPrint('VadHandlerNonWeb: dispose');

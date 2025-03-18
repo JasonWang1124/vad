@@ -4,6 +4,7 @@ enum RecordingType {
   speechEnd,
   misfire,
   error,
+  manualStop,
 }
 
 class Recording {

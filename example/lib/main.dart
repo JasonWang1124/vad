@@ -1,6 +1,7 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vad/vad.dart';
 import 'package:vad_example/recording.dart';
@@ -37,6 +38,7 @@ class _VadManagerState extends State<VadManager> {
   List<Recording> recordings = [];
   late VadHandlerBase _vadHandler;
   bool isListening = false;
+  bool isSpeechDetected = false;
   late VadSettings settings;
   final VadUIController _uiController = VadUIController();
 
@@ -67,6 +69,7 @@ class _VadManagerState extends State<VadManager> {
     );
     setState(() {
       isListening = true;
+      isSpeechDetected = false;
     });
   }
 
@@ -74,7 +77,30 @@ class _VadManagerState extends State<VadManager> {
     _vadHandler.stopListening();
     setState(() {
       isListening = false;
+      isSpeechDetected = false;
     });
+  }
+
+  Future<void> _manualStopWithAudio() async {
+    if (isListening && isSpeechDetected) {
+      final audioData = await _vadHandler.manualStopWithAudio();
+      if (audioData != null) {
+        setState(() {
+          recordings.add(Recording(
+            samples: audioData,
+            type: RecordingType.manualStop,
+          ));
+          isListening = false;
+          isSpeechDetected = false;
+        });
+        _uiController.scrollToBottom?.call();
+        debugPrint('Speech manually stopped, recording added.');
+      } else {
+        _stopListening();
+      }
+    } else {
+      _stopListening();
+    }
   }
 
   void _setupVadHandler() {
@@ -84,6 +110,7 @@ class _VadManagerState extends State<VadManager> {
           samples: [],
           type: RecordingType.speechStart,
         ));
+        isSpeechDetected = true;
       });
       _uiController.scrollToBottom?.call();
       debugPrint('Speech detected.');
@@ -106,6 +133,7 @@ class _VadManagerState extends State<VadManager> {
           samples: samples,
           type: RecordingType.speechEnd,
         ));
+        isSpeechDetected = false;
       });
       _uiController.scrollToBottom?.call();
       debugPrint('Speech ended, recording added.');
@@ -143,22 +171,18 @@ class _VadManagerState extends State<VadManager> {
   void _applySettings(VadSettings newSettings) {
     bool wasListening = isListening;
 
-    // If we're currently listening, stop first
     if (isListening) {
       _vadHandler.stopListening();
       isListening = false;
     }
 
-    // Update settings
     setState(() {
       settings = newSettings;
     });
 
-    // Dispose and recreate VAD handler
     _vadHandler.dispose();
     _initializeVad();
 
-    // Restart listening if it was previously active
     if (wasListening) {
       _startListening();
     }
@@ -177,6 +201,11 @@ class _VadManagerState extends State<VadManager> {
   }
 
   Future<void> _requestMicrophonePermission() async {
+    if (Platform.isWindows) {
+      debugPrint("在Windows平台上不需要麥克風權限請求，繼續操作");
+      return;
+    }
+
     final status = await Permission.microphone.request();
     debugPrint("Microphone permission status: $status");
   }
@@ -186,9 +215,11 @@ class _VadManagerState extends State<VadManager> {
     return VadUI(
       recordings: recordings,
       isListening: isListening,
+      isSpeechDetected: isSpeechDetected,
       settings: settings,
       onStartListening: _startListening,
       onStopListening: _stopListening,
+      onManualStopWithAudio: _manualStopWithAudio,
       onRequestMicrophonePermission: _requestMicrophonePermission,
       onShowSettingsDialog: _showSettingsDialog,
       controller: _uiController,

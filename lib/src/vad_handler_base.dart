@@ -39,6 +39,10 @@ abstract class VadHandlerBase {
   /// Stop listening for speech events
   void stopListening();
 
+  /// Manually stop speech detection and get audio data when VAD has detected speech start
+  /// Returns the audio data if speech was detected, otherwise returns null
+  Future<List<double>?> manualStopWithAudio();
+
   /// Dispose the VAD handler
   void dispose();
 }
