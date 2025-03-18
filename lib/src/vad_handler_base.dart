@@ -36,7 +36,7 @@ abstract class VadHandlerBase {
       int minSpeechFrames = 3,
       bool submitUserSpeechOnPause = true,
       int warmupFrames = 10,
-      int silenceThresholdSeconds = 5});
+      int silenceThresholdSeconds = 7});
 
   /// Stop listening for speech events
   void stopListening();

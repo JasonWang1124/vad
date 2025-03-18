@@ -57,7 +57,7 @@ class VadHandlerWeb implements VadHandlerBase {
 
   // 靜默檢測相關變數
   Timer? _silenceTimer;
-  int _silenceThresholdSeconds = 5;
+  int _silenceThresholdSeconds = 7;
   DateTime _lastSpeechTime = DateTime.now();
 
   /// Constructor
@@ -123,7 +123,7 @@ class VadHandlerWeb implements VadHandlerBase {
       int minSpeechFrames = 2,
       bool submitUserSpeechOnPause = true,
       int warmupFrames = 10,
-      int silenceThresholdSeconds = 5}) {
+      int silenceThresholdSeconds = 7}) {
     if (isDebug) {
       debugPrint(
           'VadHandlerWeb: startListening: Calling startListeningImpl with parameters: '

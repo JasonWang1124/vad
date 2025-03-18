@@ -36,7 +36,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
 
   // 靜默檢測相關變數
   Timer? _silenceTimer;
-  int _silenceThresholdSeconds = 5;
+  int _silenceThresholdSeconds = 7;
   DateTime _lastSpeechTime = DateTime.now();
 
   @override
@@ -143,7 +143,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
       int minSpeechFrames = 2,
       bool submitUserSpeechOnPause = true,
       int warmupFrames = 10,
-      int silenceThresholdSeconds = 5}) async {
+      int silenceThresholdSeconds = 7}) async {
     if (!_isInitialized) {
       _vadIterator = VadIterator.create(
           isDebug: isDebug,
