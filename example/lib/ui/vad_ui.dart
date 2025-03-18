@@ -54,8 +54,6 @@ class _VadUIState extends State<VadUI> {
   final ScrollController _scrollController = ScrollController();
 
   // Audio player state
-  Duration _duration = Duration.zero;
-  Duration _position = Duration.zero;
   bool _isPlaying = false;
   int? _currentlyPlayingIndex;
 
@@ -85,18 +83,13 @@ class _VadUIState extends State<VadUI> {
   }
 
   void _setupAudioPlayerListeners() {
-    _audioPlayer.onDurationChanged.listen((Duration duration) {
-      setState(() => _duration = duration);
-    });
+    _audioPlayer.onDurationChanged.listen((Duration duration) {});
 
-    _audioPlayer.onPositionChanged.listen((Duration position) {
-      setState(() => _position = position);
-    });
+    _audioPlayer.onPositionChanged.listen((Duration position) {});
 
     _audioPlayer.onPlayerComplete.listen((_) {
       setState(() {
         _isPlaying = false;
-        _position = Duration.zero;
         _currentlyPlayingIndex = null;
       });
     });
@@ -149,147 +142,103 @@ class _VadUIState extends State<VadUI> {
     }
   }
 
-  Future<void> _seekTo(Duration position) async {
-    await _audioPlayer.seek(position);
-    setState(() {
-      _position = position;
-    });
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$minutes:$seconds";
-  }
-
-  String _formatTimestamp(DateTime timestamp) {
-    return '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}';
-  }
-
-  Widget _buildRecordingItem(Recording recording, int index) {
-    final bool isCurrentlyPlaying = _currentlyPlayingIndex == index;
-    final bool hasAudio = (recording.type == RecordingType.speechEnd ||
-            recording.type == RecordingType.manualStop) &&
-        recording.samples != null;
-
-    // Icon and color based on recording type
-    IconData typeIcon;
-    Color iconColor;
-    Color backgroundColor;
-    String typeTitle;
+  Widget _buildRecordingCard(Recording recording, int index) {
+    Color cardColor;
+    IconData icon;
+    String title;
+    bool canPlay = false;
 
     switch (recording.type) {
       case RecordingType.speechStart:
-        typeIcon = Icons.mic;
-        iconColor = Colors.white;
-        backgroundColor = Colors.orange;
-        typeTitle = 'Speech Detected';
+        cardColor = Colors.blue.withOpacity(0.2);
+        icon = Icons.mic;
+        title = '語音檢測開始';
         break;
       case RecordingType.realSpeechStart:
-        typeIcon = Icons.record_voice_over;
-        iconColor = Colors.white;
-        backgroundColor = Colors.green;
-        typeTitle = 'Real Speech Started';
+        cardColor = Colors.green.withOpacity(0.2);
+        icon = Icons.mic;
+        title = '確認為真實語音';
         break;
       case RecordingType.speechEnd:
-        typeIcon =
-            isCurrentlyPlaying && _isPlaying ? Icons.pause : Icons.play_arrow;
-        iconColor = Colors.blue[100]!;
-        backgroundColor = Colors.blue[900]!;
-        typeTitle = 'Recorded Speech';
-        break;
-      case RecordingType.manualStop:
-        typeIcon =
-            isCurrentlyPlaying && _isPlaying ? Icons.pause : Icons.play_arrow;
-        iconColor = Colors.blue[100]!;
-        backgroundColor = Colors.purple;
-        typeTitle = 'Manually Stopped Speech';
+        cardColor = Colors.purple.withOpacity(0.2);
+        icon = Icons.stop_circle;
+        title = '語音檢測結束';
+        canPlay = recording.samples != null && recording.samples!.isNotEmpty;
         break;
       case RecordingType.misfire:
-        typeIcon = Icons.warning_amber_rounded;
-        iconColor = Colors.white;
-        backgroundColor = Colors.red;
-        typeTitle = 'VAD Misfire';
+        cardColor = Colors.orange.withOpacity(0.2);
+        icon = Icons.error_outline;
+        title = 'VAD誤觸發';
         break;
       case RecordingType.error:
-        typeIcon = Icons.error_outline;
-        iconColor = Colors.white;
-        backgroundColor = Colors.deepPurple;
-        typeTitle = 'Error Event';
+        cardColor = Colors.red.withOpacity(0.2);
+        icon = Icons.error;
+        title = '錯誤';
+        break;
+      case RecordingType.manualStop:
+        cardColor = Colors.teal.withOpacity(0.2);
+        icon = Icons.stop;
+        title = '手動停止語音';
+        canPlay = recording.samples != null && recording.samples!.isNotEmpty;
+        break;
+      case RecordingType.silenceThresholdReached:
+        cardColor = Colors.amber.withOpacity(0.2);
+        icon = Icons.volume_off;
+        title = '已達靜音閾值';
         break;
     }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      child: Column(
-        children: [
-          ListTile(
-            leading: CircleAvatar(
-              backgroundColor: backgroundColor,
-              child: Icon(typeIcon, color: iconColor),
-            ),
-            title: Text(
-              '$typeTitle ${index + 1}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: recording.type == RecordingType.error ||
-                        recording.type == RecordingType.misfire
-                    ? Colors.red[300]
-                    : null,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_formatTimestamp(recording.timestamp)),
-                if (hasAudio)
-                  Text(
-                    '${(recording.samples!.length / 16000).toStringAsFixed(1)} seconds',
-                    style: TextStyle(color: Colors.grey[400]),
-                  ),
-              ],
-            ),
-            onTap: hasAudio ? () => _playRecording(recording, index) : null,
+      color: cardColor,
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
-          if (isCurrentlyPlaying && hasAudio) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                children: [
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      thumbShape:
-                          const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape:
-                          const RoundSliderOverlayShape(overlayRadius: 14),
-                      trackHeight: 4,
-                    ),
-                    child: Slider(
-                      value: _position.inMilliseconds.toDouble(),
-                      min: 0,
-                      max: _duration.inMilliseconds.toDouble() + 1,
-                      onChanged: (value) {
-                        _seekTo(Duration(milliseconds: value.toInt()));
-                      },
-                    ),
+          child: Icon(icon, size: 28, color: Colors.white),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        subtitle: Text(
+          '${recording.timestamp.hour.toString().padLeft(2, '0')}:${recording.timestamp.minute.toString().padLeft(2, '0')}:${recording.timestamp.second.toString().padLeft(2, '0')}',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.white.withOpacity(0.7),
+          ),
+        ),
+        trailing: canPlay
+            ? Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    _isPlaying && _currentlyPlayingIndex == index
+                        ? Icons.pause
+                        : Icons.play_arrow,
+                    color: Colors.white,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_formatDuration(_position)),
-                        Text(_formatDuration(_duration)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ],
-        ],
+                  onPressed: () {
+                    _playRecording(recording, index);
+                  },
+                ),
+              )
+            : null,
       ),
     );
   }
@@ -300,6 +249,7 @@ class _VadUIState extends State<VadUI> {
       appBar: AppBar(
         title: const Text('VAD Demo'),
         centerTitle: true,
+        elevation: 4,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -311,8 +261,18 @@ class _VadUIState extends State<VadUI> {
       body: Column(
         children: [
           // Controls
-          Padding(
+          Container(
             padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             child: Column(
               children: [
                 Row(
@@ -322,12 +282,16 @@ class _VadUIState extends State<VadUI> {
                       onPressed:
                           widget.isListening ? null : widget.onStartListening,
                       icon: const Icon(Icons.mic),
-                      label: const Text('Start'),
+                      label: const Text('開始'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
+                            horizontal: 32, vertical: 16),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     ElevatedButton.icon(
@@ -338,14 +302,17 @@ class _VadUIState extends State<VadUI> {
                           : null,
                       icon: Icon(
                           widget.isSpeechDetected ? Icons.save : Icons.stop),
-                      label: Text(
-                          widget.isSpeechDetected ? 'Save & Stop' : 'Stop'),
+                      label: Text(widget.isSpeechDetected ? '儲存並停止' : '停止'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor:
                             widget.isSpeechDetected ? Colors.blue : Colors.red,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
+                            horizontal: 32, vertical: 16),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -354,18 +321,22 @@ class _VadUIState extends State<VadUI> {
                 ElevatedButton.icon(
                   onPressed: widget.onRequestMicrophonePermission,
                   icon: const Icon(Icons.settings_voice),
-                  label: const Text('Request Mic Permission'),
+                  label: const Text('請求麥克風權限'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
+                        horizontal: 32, vertical: 16),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
 
                 // 添加音量指示器
                 if (widget.isListening) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   VolumeIndicatorWithLabel(
-                    volumeLevel: widget.volumeLevel,
+                    volumeLevel: widget.volumeLevel / 10,
                     decibels: widget.decibels,
                     width: MediaQuery.of(context).size.width - 32,
                   ),
@@ -376,13 +347,16 @@ class _VadUIState extends State<VadUI> {
 
           // Recording list
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              itemCount: widget.recordings.length,
-              itemBuilder: (context, index) {
-                return _buildRecordingItem(widget.recordings[index], index);
-              },
+            child: Container(
+              margin: const EdgeInsets.only(top: 8),
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                itemCount: widget.recordings.length,
+                itemBuilder: (context, index) {
+                  return _buildRecordingCard(widget.recordings[index], index);
+                },
+              ),
             ),
           ),
         ],

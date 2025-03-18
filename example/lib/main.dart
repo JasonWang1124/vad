@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
+import 'dart:async'; // 添加 Timer 支持
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vad/vad.dart';
 import 'package:vad_example/recording.dart';
@@ -45,6 +46,17 @@ class _VadManagerState extends State<VadManager> {
   int currentVolumeLevel = 0;
   double currentDecibels = 0.0;
 
+  // 靜音檢測相關變量
+  Timer? _silenceTimer;
+  bool _isSilent = true;
+  DateTime? _silenceStartTime;
+
+  // 靜音閥值回調
+  final _onSilenceThresholdReachedController =
+      StreamController<DateTime>.broadcast();
+  Stream<DateTime> get onSilenceThresholdReached =>
+      _onSilenceThresholdReachedController.stream;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +70,8 @@ class _VadManagerState extends State<VadManager> {
   }
 
   void _startListening() {
+    _resetSilenceDetection(); // 重置靜音檢測
+
     _vadHandler.startListening(
       frameSamples: settings.frameSamples,
       minSpeechFrames: settings.minSpeechFrames,
@@ -74,9 +88,14 @@ class _VadManagerState extends State<VadManager> {
       isListening = true;
       isSpeechDetected = false;
     });
+
+    // 啟動靜音計時器
+    _startSilenceTimer();
   }
 
   void _stopListening() {
+    _stopSilenceTimer(); // 停止靜音計時器
+
     _vadHandler.stopListening();
     setState(() {
       isListening = false;
@@ -117,6 +136,10 @@ class _VadManagerState extends State<VadManager> {
       });
       _uiController.scrollToBottom?.call();
       debugPrint('Speech detected.');
+
+      // 更新靜音狀態
+      _isSilent = false;
+      _resetSilenceDetection();
     });
 
     _vadHandler.onRealSpeechStart.listen((_) {
@@ -155,6 +178,23 @@ class _VadManagerState extends State<VadManager> {
         currentVolumeLevel = volumeLevel;
         currentDecibels = decibels;
       });
+
+      // 靜音檢測邏輯
+      if (isListening) {
+        if (isSpeech > settings.positiveSpeechThreshold) {
+          // 檢測到語音，重置靜音計時
+          if (_isSilent) {
+            _isSilent = false;
+            _resetSilenceDetection();
+          }
+        } else if (isSpeech < settings.negativeSpeechThreshold) {
+          // 檢測到靜音
+          if (!_isSilent) {
+            _isSilent = true;
+            _silenceStartTime = DateTime.now();
+          }
+        }
+      }
 
       debugPrint(
           'Frame processed - isSpeech: $isSpeech, notSpeech: $notSpeech, decibels: $decibels, volumeLevel: $volumeLevel');
@@ -245,6 +285,51 @@ class _VadManagerState extends State<VadManager> {
     }
     _vadHandler.dispose();
     _uiController.dispose();
+    _stopSilenceTimer();
+    _onSilenceThresholdReachedController.close();
     super.dispose();
+  }
+
+  // 啟動靜音計時器
+  void _startSilenceTimer() {
+    _silenceTimer?.cancel();
+    _silenceTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!isListening || isSpeechDetected) return;
+
+      if (_isSilent && _silenceStartTime != null) {
+        final silenceDuration = DateTime.now().difference(_silenceStartTime!);
+        if (silenceDuration.inMilliseconds >=
+            settings.silenceThresholdSeconds * 1000) {
+          // 靜音閥值達到
+          _onSilenceThresholdReachedController.add(DateTime.now());
+
+          // 將檢測到的靜音事件添加到錄音列表中
+          setState(() {
+            recordings.add(Recording(
+              samples: [],
+              type: RecordingType.silenceThresholdReached,
+            ));
+          });
+          _uiController.scrollToBottom?.call();
+
+          // 重置靜音檢測
+          _resetSilenceDetection();
+
+          debugPrint('靜音閥值達到: ${settings.silenceThresholdSeconds}秒');
+        }
+      }
+    });
+  }
+
+  // 停止靜音計時器
+  void _stopSilenceTimer() {
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+  }
+
+  // 重置靜音檢測
+  void _resetSilenceDetection() {
+    _isSilent = true;
+    _silenceStartTime = DateTime.now();
   }
 }

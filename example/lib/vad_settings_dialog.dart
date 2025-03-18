@@ -5,6 +5,11 @@ enum RecordingModel {
   v5,
 }
 
+enum EnvironmentPreset {
+  standard,
+  noisy,
+}
+
 class VadSettings {
   // Model type
   RecordingModel model;
@@ -22,6 +27,9 @@ class VadSettings {
   // Behavior settings
   bool submitUserSpeechOnPause;
 
+  // 靜音閥值（秒）
+  double silenceThresholdSeconds;
+
   VadSettings({
     this.model = RecordingModel.v5,
     this.frameSamples = 512,
@@ -31,6 +39,7 @@ class VadSettings {
     this.positiveSpeechThreshold = 0.5,
     this.negativeSpeechThreshold = 0.35,
     this.submitUserSpeechOnPause = false,
+    this.silenceThresholdSeconds = 7.0,
   });
 
   // Clone the settings
@@ -44,6 +53,7 @@ class VadSettings {
       positiveSpeechThreshold: positiveSpeechThreshold,
       negativeSpeechThreshold: negativeSpeechThreshold,
       submitUserSpeechOnPause: submitUserSpeechOnPause,
+      silenceThresholdSeconds: silenceThresholdSeconds,
     );
   }
 
@@ -65,6 +75,23 @@ class VadSettings {
       redemptionFrames = 24;
       positiveSpeechThreshold = 0.5;
       negativeSpeechThreshold = 0.35;
+    }
+    silenceThresholdSeconds = 3.0;
+  }
+
+  // 應用嘈雜環境的預設參數
+  void applyEnvironmentPreset(EnvironmentPreset preset) {
+    if (preset == EnvironmentPreset.noisy) {
+      // 嘈雜環境優化參數
+      positiveSpeechThreshold = 0.3; // 降低正向閾值，更容易檢測到語音
+      negativeSpeechThreshold = 0.2; // 降低負向閾值，更寬容地保持檢測狀態
+      redemptionFrames =
+          model == RecordingModel.legacy ? 16 : 36; // 增加贖回幀數，延長語音識別時間
+      minSpeechFrames = model == RecordingModel.legacy ? 2 : 6; // 減少要求的最小語音幀數
+      preSpeechPadFrames = model == RecordingModel.legacy ? 15 : 40; // 增加語音前緩衝
+    } else {
+      // 標準環境參數
+      resetToDefaults();
     }
   }
 
@@ -155,6 +182,34 @@ class _VadSettingsDialogState extends State<VadSettingsDialog> {
                 ),
               ],
             ),
+
+            // 環境預設選擇
+            Row(
+              children: [
+                const Text('環境預設:'),
+                const SizedBox(width: 8),
+                DropdownButton<EnvironmentPreset>(
+                  value: tempSettings.positiveSpeechThreshold == 0.3
+                      ? EnvironmentPreset.noisy
+                      : EnvironmentPreset.standard,
+                  items: const [
+                    DropdownMenuItem(
+                        value: EnvironmentPreset.standard, child: Text('標準環境')),
+                    DropdownMenuItem(
+                        value: EnvironmentPreset.noisy,
+                        child: Text('嘈雜環境（展場、公共場所等）')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        tempSettings.applyEnvironmentPreset(value);
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+
             const Divider(),
 
             // Frame Samples
@@ -415,6 +470,55 @@ class _VadSettingsDialogState extends State<VadSettingsDialog> {
                 const Text('Submit User Speech On Pause'),
               ],
             ),
+
+            const SizedBox(height: 16),
+
+            // 靜音閥值設置
+            const Text('靜音閥值 (秒):',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: tempSettings.silenceThresholdSeconds,
+                    min: 0.5,
+                    max: 10.0,
+                    divisions: 19,
+                    onChanged: (value) {
+                      setState(() {
+                        tempSettings.silenceThresholdSeconds = value;
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 80,
+                  child: TextField(
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    controller: TextEditingController(
+                        text: tempSettings.silenceThresholdSeconds
+                            .toStringAsFixed(1)),
+                    onChanged: (value) {
+                      final parsed = double.tryParse(value);
+                      if (parsed != null) {
+                        setState(() {
+                          tempSettings.silenceThresholdSeconds = parsed;
+                        });
+                      }
+                    },
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+                'VAD檢測到${tempSettings.silenceThresholdSeconds.toStringAsFixed(1)}秒靜音時觸發回調'),
+            const SizedBox(height: 16),
           ],
         ),
       ),
