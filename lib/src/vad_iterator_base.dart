@@ -7,6 +7,12 @@ import 'vad_event.dart';
 /// But it can be used directly for more control over the VAD process. For example, to process non-streaming audio data.
 
 abstract class VadIteratorBase {
+  /// Audio gain to apply to output audio samples
+  double get audioGain;
+
+  /// Set audio gain value
+  set audioGain(double value);
+
   /// Initialize the VAD model from the given [modelPath].
   Future<void> initModel(String modelPath);
 

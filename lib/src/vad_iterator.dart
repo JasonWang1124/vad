@@ -16,7 +16,8 @@ class VadIterator {
       required int preSpeechPadFrames,
       required int minSpeechFrames,
       required bool submitUserSpeechOnPause,
-      required String model}) {
+      required String model,
+      double audioGain = 1.0}) {
     return implementation.createVadIterator(
         isDebug: isDebug,
         sampleRate: sampleRate,
@@ -27,6 +28,7 @@ class VadIterator {
         preSpeechPadFrames: preSpeechPadFrames,
         minSpeechFrames: minSpeechFrames,
         submitUserSpeechOnPause: submitUserSpeechOnPause,
-        model: model);
+        model: model,
+        audioGain: audioGain);
   }
 }

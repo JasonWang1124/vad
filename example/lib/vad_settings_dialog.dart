@@ -30,6 +30,9 @@ class VadSettings {
   // 靜音閥值（秒）
   double silenceThresholdSeconds;
 
+  // 音訊增益
+  double audioGain;
+
   VadSettings({
     this.model = RecordingModel.v5,
     this.frameSamples = 512,
@@ -40,6 +43,7 @@ class VadSettings {
     this.negativeSpeechThreshold = 0.35,
     this.submitUserSpeechOnPause = false,
     this.silenceThresholdSeconds = 7.0,
+    this.audioGain = 1.0,
   });
 
   // Clone the settings
@@ -54,6 +58,7 @@ class VadSettings {
       negativeSpeechThreshold: negativeSpeechThreshold,
       submitUserSpeechOnPause: submitUserSpeechOnPause,
       silenceThresholdSeconds: silenceThresholdSeconds,
+      audioGain: audioGain,
     );
   }
 
@@ -77,6 +82,7 @@ class VadSettings {
       negativeSpeechThreshold = 0.35;
     }
     silenceThresholdSeconds = 3.0;
+    audioGain = 1.0;
   }
 
   // 應用嘈雜環境的預設參數
@@ -89,6 +95,7 @@ class VadSettings {
           model == RecordingModel.legacy ? 16 : 36; // 增加贖回幀數，延長語音識別時間
       minSpeechFrames = model == RecordingModel.legacy ? 2 : 6; // 減少要求的最小語音幀數
       preSpeechPadFrames = model == RecordingModel.legacy ? 15 : 40; // 增加語音前緩衝
+      audioGain = 1.5; // 嘈雜環境下增加音訊增益
     } else {
       // 標準環境參數
       resetToDefaults();
@@ -518,6 +525,52 @@ class _VadSettingsDialogState extends State<VadSettingsDialog> {
             ),
             Text(
                 'VAD檢測到${tempSettings.silenceThresholdSeconds.toStringAsFixed(1)}秒靜音時觸發回調'),
+            const SizedBox(height: 16),
+
+            // 音訊增益設置
+            const Text('音訊增益倍率:',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: tempSettings.audioGain,
+                    min: 0.1,
+                    max: 5.0,
+                    divisions: 49,
+                    onChanged: (value) {
+                      setState(() {
+                        tempSettings.audioGain = value;
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 80,
+                  child: TextField(
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    controller: TextEditingController(
+                        text: tempSettings.audioGain.toStringAsFixed(1)),
+                    onChanged: (value) {
+                      final parsed = double.tryParse(value);
+                      if (parsed != null) {
+                        setState(() {
+                          tempSettings.audioGain = parsed;
+                        });
+                      }
+                    },
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+                '放大輸出音訊的倍率 (預設: 1.0${tempSettings.audioGain != 1.0 ? ", 目前: ${tempSettings.audioGain.toStringAsFixed(1)}倍" : ""})'),
             const SizedBox(height: 16),
           ],
         ),

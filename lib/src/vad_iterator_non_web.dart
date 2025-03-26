@@ -46,6 +46,17 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// * 'v5' for Silero VAD v5 model
   String model;
 
+  /// Audio gain to apply to output audio samples
+  double _audioGain = 1.0;
+
+  @override
+  double get audioGain => _audioGain;
+
+  @override
+  set audioGain(double value) {
+    _audioGain = value;
+  }
+
   // Internal variables
   /// Flag to indicate speech detection state.
   bool speaking = false;
@@ -97,7 +108,10 @@ class VadIteratorNonWeb implements VadIteratorBase {
     required this.minSpeechFrames,
     required this.submitUserSpeechOnPause,
     required this.model,
-  }) : frameByteCount = frameSamples * 2;
+    double audioGain = 1.0,
+  }) : frameByteCount = frameSamples * 2 {
+    _audioGain = audioGain;
+  }
 
   /// Initialize the VAD model from the given [modelPath].
   @override
@@ -378,40 +392,97 @@ class VadIteratorNonWeb implements VadIteratorBase {
     }
   }
 
+  /// 軟壓縮/軟限幅算法，比clamp更溫和，減少失真
+  double _softClip(double sample, double gain) {
+    // 應用增益
+    double amplifiedSample = sample * gain;
+
+    // 使用tanh函數進行軟壓縮，保留更多動態範圍
+    // π/2是一個縮放因子，使結果更接近線性調整但避免硬截斷
+    if (amplifiedSample.abs() > 0.8) {
+      return (amplifiedSample.abs() / amplifiedSample) *
+          (1.0 - exp(-3.0 * amplifiedSample.abs()));
+    }
+
+    // 對於較小的值，保持線性，以保持原始的動態範圍
+    return amplifiedSample;
+  }
+
+  /// 預分析音訊以找到最佳增益值，避免嚴重失真
+  double _getOptimalGain(List<double> samples, double requestedGain) {
+    if (requestedGain <= 1.0) return requestedGain; // 小於1的增益不需要優化
+
+    // 找出音訊樣本中的最大絕對值
+    double maxAmp = 0.0;
+    for (var sample in samples) {
+      maxAmp = maxAmp < sample.abs() ? sample.abs() : maxAmp;
+    }
+
+    // 如果最大值乘以增益會超過0.95，則調整增益
+    // 0.95作為安全邊界，避免極端接近1.0
+    if (maxAmp * requestedGain > 0.95) {
+      // 計算一個安全的增益值，但最低不小於原始值的70%
+      // 這樣可以保證有放大效果，但避免嚴重失真
+      double safeGain = 0.95 / maxAmp;
+      return max(safeGain, requestedGain * 0.7);
+    }
+
+    return requestedGain;
+  }
+
   /// Manually end speech detection and return audio data
   @override
   Future<List<double>?> manualEndSpeech() async {
-    if (speaking && speechPositiveFrameCount >= minSpeechFrames) {
-      if (isDebug) debugPrint('VAD Iterator: Manually ending speech.');
+    if (isDebug) debugPrint('manualEndSpeech');
+    try {
+      if (speaking && speechPositiveFrameCount >= minSpeechFrames) {
+        if (isDebug) debugPrint('VAD Iterator: Manually ending speech.');
 
-      // Combine speech buffer
-      final audioData = _combineSpeechBuffer();
+        // Combine speech buffer
+        final audioData = _combineSpeechBuffer();
 
-      // Convert audio data to float list
-      final buffer = audioData.buffer;
-      final int16List = Int16List.view(buffer);
-      final floatSamples = int16List.map((e) => e / 32768.0).toList();
+        // Convert audio data to float list
+        final buffer = audioData.buffer;
+        final int16List = Int16List.view(buffer);
 
-      // Emit event
-      onVadEvent?.call(VadEvent(
-        type: VadEventType.end,
-        timestamp: _getCurrentTimestamp(),
-        message:
-            'Speech manually ended at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
-        audioData: audioData,
-      ));
+        // 先轉換回浮點數樣本
+        final rawSamples = int16List.map((e) => e / 32768.0).toList();
 
-      // Reset state
-      speaking = false;
-      redemptionCounter = 0;
-      speechPositiveFrameCount = 0;
-      speechBuffer.clear();
-      preSpeechBuffer.clear();
+        // 分析並求最佳增益值
+        final optimalGain = _getOptimalGain(rawSamples, _audioGain);
+        if (isDebug && optimalGain != _audioGain) {
+          debugPrint(
+              'Adjusted gain from ${_audioGain.toStringAsFixed(2)} to ${optimalGain.toStringAsFixed(2)} to reduce distortion');
+        }
 
-      return floatSamples;
+        // 應用軟壓縮和優化後的增益
+        final floatSamples =
+            rawSamples.map((e) => _softClip(e, optimalGain)).toList();
+
+        // Emit event
+        onVadEvent?.call(VadEvent(
+          type: VadEventType.end,
+          timestamp: _getCurrentTimestamp(),
+          message:
+              'Speech manually ended at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+          audioData: audioData,
+        ));
+
+        // Reset state
+        speaking = false;
+        redemptionCounter = 0;
+        speechPositiveFrameCount = 0;
+        speechBuffer.clear();
+        preSpeechBuffer.clear();
+
+        return floatSamples;
+      }
+
+      return null;
+    } catch (e) {
+      if (isDebug) debugPrint('Error in manualEndSpeech: $e');
+      return null;
     }
-
-    return null;
   }
 
   void _addToPreSpeechBuffer(Float32List data) {
@@ -434,8 +505,26 @@ class VadIteratorNonWeb implements VadIteratorBase {
       combined.setRange(offset, offset + frame.length, frame);
       offset += frame.length;
     }
-    final int16Data = Int16List.fromList(
-        combined.map((e) => (e * 32767).clamp(-32768, 32767).toInt()).toList());
+
+    // 分析並找到最佳增益值
+    final optimalGain = _getOptimalGain(combined, _audioGain);
+    if (isDebug && optimalGain != _audioGain) {
+      debugPrint(
+          'Adjusted gain from ${_audioGain.toStringAsFixed(2)} to ${optimalGain.toStringAsFixed(2)} to reduce distortion');
+    }
+
+    // 應用軟壓縮和增益，然後轉換為Int16
+    final int16Data = Int16List.fromList(combined.map((e) {
+      // 應用軟壓縮代替簡單的clamp
+      double processedSample = _softClip(e, optimalGain);
+
+      // 確保值在-1.0到1.0範圍內（以防萬一）
+      processedSample = processedSample.clamp(-1.0, 1.0);
+
+      // 轉換為16位整數
+      return (processedSample * 32767).toInt();
+    }).toList());
+
     final Uint8List audioData = Uint8List.view(int16Data.buffer);
     return audioData;
   }
@@ -498,6 +587,7 @@ VadIteratorBase createVadIterator({
   required int minSpeechFrames,
   required bool submitUserSpeechOnPause,
   required String model,
+  double audioGain = 1.0,
 }) {
   return VadIteratorNonWeb(
     isDebug: isDebug,
@@ -510,5 +600,6 @@ VadIteratorBase createVadIterator({
     minSpeechFrames: minSpeechFrames,
     submitUserSpeechOnPause: submitUserSpeechOnPause,
     model: model,
+    audioGain: audioGain,
   );
 }

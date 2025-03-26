@@ -106,6 +106,7 @@ class _VadManagerState extends State<VadManager> {
       model: settings.modelString,
       baseAssetPath: 'assets/packages/vad/assets/',
       onnxWASMBasePath: 'assets/packages/vad/assets/',
+      audioGain: settings.audioGain,
     );
     setState(() {
       isListening = true;
@@ -256,13 +257,18 @@ class _VadManagerState extends State<VadManager> {
       isListening = false;
     }
 
+    // 先更新設置
     setState(() {
       settings = newSettings;
     });
 
+    // 確保在釋放前停止所有活動
     _vadHandler.dispose();
+
+    // 重新初始化VAD
     _initializeVad();
 
+    // 如果之前在監聽，則重新開始監聽
     if (wasListening) {
       _startListening();
     }

@@ -40,7 +40,8 @@ abstract class VadHandlerBase {
       bool submitUserSpeechOnPause = false,
       String model = 'legacy',
       String baseAssetPath = 'assets/packages/vad/assets/',
-      String onnxWASMBasePath = 'assets/packages/vad/assets/'});
+      String onnxWASMBasePath = 'assets/packages/vad/assets/',
+      double audioGain = 1.0});
 
   /// Stop listening for speech events
   void stopListening();

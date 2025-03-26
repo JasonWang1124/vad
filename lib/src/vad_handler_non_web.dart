@@ -7,6 +7,7 @@ import 'package:vad/src/vad_iterator.dart';
 import 'dart:async';
 import 'vad_event.dart';
 import 'vad_iterator_base.dart';
+import 'dart:math';
 
 /// VadHandlerNonWeb class
 class VadHandlerNonWeb implements VadHandlerBase {
@@ -74,6 +75,43 @@ class VadHandlerNonWeb implements VadHandlerBase {
   /// Constructor
   VadHandlerNonWeb({required this.isDebug, this.modelPath = ''});
 
+  /// 軟壓縮/軟限幅算法，比clamp更溫和，減少失真
+  double _softClip(double sample, double gain) {
+    // 應用增益
+    double amplifiedSample = sample * gain;
+
+    // 使用軟限幅方法，保留更多動態範圍
+    if (amplifiedSample.abs() > 0.8) {
+      return (amplifiedSample.abs() / amplifiedSample) *
+          (1.0 - exp(-3.0 * amplifiedSample.abs()));
+    }
+
+    // 對於較小的值，保持線性，以保持原始的動態範圍
+    return amplifiedSample;
+  }
+
+  /// 預分析音訊以找到最佳增益值，避免嚴重失真
+  double _getOptimalGain(List<double> samples, double requestedGain) {
+    if (requestedGain <= 1.0) return requestedGain; // 小於1的增益不需要優化
+
+    // 找出音訊樣本中的最大絕對值
+    double maxAmp = 0.0;
+    for (var sample in samples) {
+      maxAmp = maxAmp < sample.abs() ? sample.abs() : maxAmp;
+    }
+
+    // 如果最大值乘以增益會超過0.95，則調整增益
+    // 0.95作為安全邊界，避免極端接近1.0
+    if (maxAmp * requestedGain > 0.95) {
+      // 計算一個安全的增益值，但最低不小於原始值的70%
+      // 這樣可以保證有放大效果，但避免嚴重失真
+      double safeGain = 0.95 / maxAmp;
+      return max(safeGain, requestedGain * 0.7);
+    }
+
+    return requestedGain;
+  }
+
   /// Handle VAD event
   void _handleVadEvent(VadEvent event) {
     if (isDebug) {
@@ -88,9 +126,24 @@ class VadHandlerNonWeb implements VadHandlerBase {
         _onRealSpeechStartController.add(null);
         break;
       case VadEventType.end:
-        if (event.audioData != null) {
+        if (event.audioData != null && _isInitialized) {
           final int16List = event.audioData!.buffer.asInt16List();
-          final floatSamples = int16List.map((e) => e / 32768.0).toList();
+
+          // 先轉換回浮點數樣本
+          final rawSamples = int16List.map((e) => e / 32768.0).toList();
+
+          // 分析並求最佳增益值
+          final optimalGain =
+              _getOptimalGain(rawSamples, _vadIterator.audioGain);
+          if (isDebug && optimalGain != _vadIterator.audioGain) {
+            debugPrint(
+                'Adjusted gain from ${_vadIterator.audioGain.toStringAsFixed(2)} to ${optimalGain.toStringAsFixed(2)} to reduce distortion');
+          }
+
+          // 應用軟壓縮和優化後的增益
+          final floatSamples =
+              rawSamples.map((e) => _softClip(e, optimalGain)).toList();
+
           _onSpeechEndController.add(floatSamples);
         }
         break;
@@ -125,7 +178,8 @@ class VadHandlerNonWeb implements VadHandlerBase {
       bool submitUserSpeechOnPause = false,
       String model = 'legacy',
       String baseAssetPath = 'assets/packages/vad/assets/',
-      String onnxWASMBasePath = 'assets/packages/vad/assets/'}) async {
+      String onnxWASMBasePath = 'assets/packages/vad/assets/',
+      double audioGain = 1.0}) async {
     if (!_isInitialized) {
       _vadIterator = VadIterator.create(
         isDebug: isDebug,
@@ -138,6 +192,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
         minSpeechFrames: minSpeechFrames,
         submitUserSpeechOnPause: submitUserSpeechOnPause,
         model: model,
+        audioGain: audioGain,
       );
       if (modelPath.isEmpty) {
         if (model == 'v5') {
@@ -150,6 +205,9 @@ class VadHandlerNonWeb implements VadHandlerBase {
       _vadIterator.setVadEventCallback(_handleVadEvent);
       _submitUserSpeechOnPause = submitUserSpeechOnPause;
       _isInitialized = true;
+    } else {
+      // 如果已經初始化，只更新音訊增益
+      _vadIterator.audioGain = audioGain;
     }
 
     bool hasPermission = await _audioRecorder.hasPermission();
@@ -181,15 +239,18 @@ class VadHandlerNonWeb implements VadHandlerBase {
   Future<void> stopListening() async {
     if (isDebug) debugPrint('stopListening');
     try {
-      // Before stopping the audio stream, handle forced speech end if needed
-      if (_submitUserSpeechOnPause) {
-        _vadIterator.forceEndSpeech();
+      // 確保只有在已初始化的情況下才訪問_vadIterator
+      if (_isInitialized) {
+        // Before stopping the audio stream, handle forced speech end if needed
+        if (_submitUserSpeechOnPause) {
+          _vadIterator.forceEndSpeech();
+        }
+        _vadIterator.reset();
       }
 
       await _audioStreamSubscription?.cancel();
       _audioStreamSubscription = null;
       await _audioRecorder.stop();
-      _vadIterator.reset();
     } catch (e) {
       _onErrorController.add(e.toString());
       if (isDebug) debugPrint('Error stopping audio stream: $e');
@@ -201,6 +262,11 @@ class VadHandlerNonWeb implements VadHandlerBase {
   Future<List<double>?> manualStopWithAudio() async {
     if (isDebug) debugPrint('manualStopWithAudio');
     try {
+      // 確保只有在已初始化的情況下才訪問_vadIterator
+      if (!_isInitialized) {
+        return null;
+      }
+
       // Get audio data from the VAD iterator
       final audioData = await _vadIterator.manualEndSpeech();
 
@@ -221,14 +287,23 @@ class VadHandlerNonWeb implements VadHandlerBase {
   @override
   void dispose() {
     if (isDebug) debugPrint('VadHandlerNonWeb: dispose');
-    stopListening();
-    _vadIterator.release();
-    _onSpeechEndController.close();
-    _onFrameProcessedController.close();
-    _onSpeechStartController.close();
-    _onRealSpeechStartController.close();
-    _onVADMisfireController.close();
-    _onErrorController.close();
+    try {
+      stopListening();
+      // 確保只有在已初始化的情況下才訪問_vadIterator
+      if (_isInitialized) {
+        _vadIterator.release();
+        _isInitialized = false; // 重置初始化標誌
+      }
+    } catch (e) {
+      if (isDebug) debugPrint('Error disposing VAD handler: $e');
+    } finally {
+      _onSpeechEndController.close();
+      _onFrameProcessedController.close();
+      _onSpeechStartController.close();
+      _onRealSpeechStartController.close();
+      _onVADMisfireController.close();
+      _onErrorController.close();
+    }
   }
 }
 

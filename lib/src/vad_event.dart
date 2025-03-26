@@ -30,18 +30,19 @@ class SpeechProbabilities {
   /// Probability of not speech
   final double notSpeech;
 
-  /// Audio volume in decibels (dB)
+  /// Decibel value of the audio frame
   final double decibels;
 
-  /// Audio volume level on a scale of 0-10
+  /// Volume level (0-10) of the audio frame
   final int volumeLevel;
 
   /// Constructor
-  SpeechProbabilities(
-      {required this.isSpeech,
-      required this.notSpeech,
-      this.decibels = 0.0,
-      this.volumeLevel = 0});
+  SpeechProbabilities({
+    required this.isSpeech,
+    required this.notSpeech,
+    required this.decibels,
+    required this.volumeLevel,
+  });
 }
 
 /// VadEvent class
@@ -56,6 +57,8 @@ class VadEvent {
   final String message;
 
   /// Audio data
+  /// Note: For VadEventType.end, the audio data is returned with original gain (1.0).
+  /// The audio gain is applied when converting to float samples in manualEndSpeech and _handleVadEvent.
   final Uint8List? audioData;
 
   /// Speech probabilities
@@ -69,8 +72,8 @@ class VadEvent {
     required this.type,
     required this.timestamp,
     required this.message,
-    this.audioData,
     this.probabilities,
+    this.audioData,
     this.frameData,
   });
 }

@@ -5,6 +5,16 @@ import 'package:vad/src/vad_iterator_base.dart';
 /// Not implemented for web, since Web uses JavaScript library for VAD
 /// Only added for compatibility with non-web platforms
 class VadIteratorWeb implements VadIteratorBase {
+  double _audioGain = 1.0;
+
+  @override
+  double get audioGain => _audioGain;
+
+  @override
+  set audioGain(double value) {
+    _audioGain = value;
+  }
+
   @override
   void forceEndSpeech() {
     throw UnimplementedError();
@@ -52,6 +62,7 @@ VadIteratorBase createVadIterator(
     required int preSpeechPadFrames,
     required int minSpeechFrames,
     required bool submitUserSpeechOnPause,
-    required String model}) {
+    required String model,
+    double audioGain = 1.0}) {
   return VadIteratorWeb();
 }
