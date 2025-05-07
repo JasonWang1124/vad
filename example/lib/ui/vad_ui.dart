@@ -207,39 +207,39 @@ class _VadUIState extends State<VadUI> {
 
     switch (recording.type) {
       case RecordingType.speechStart:
-        cardColor = Colors.blue.withOpacity(0.2);
+        cardColor = Colors.blue.withValues(alpha: 0.2);
         icon = Icons.mic;
         title = '語音檢測開始';
         break;
       case RecordingType.realSpeechStart:
-        cardColor = Colors.green.withOpacity(0.2);
+        cardColor = Colors.green.withValues(alpha: 0.2);
         icon = Icons.mic;
         title = '確認為真實語音';
         break;
       case RecordingType.speechEnd:
-        cardColor = Colors.purple.withOpacity(0.2);
+        cardColor = Colors.purple.withValues(alpha: 0.2);
         icon = Icons.stop_circle;
         title = '語音檢測結束';
         canPlay = recording.samples != null && recording.samples!.isNotEmpty;
         break;
       case RecordingType.misfire:
-        cardColor = Colors.orange.withOpacity(0.2);
+        cardColor = Colors.orange.withValues(alpha: 0.2);
         icon = Icons.error_outline;
         title = 'VAD誤觸發';
         break;
       case RecordingType.error:
-        cardColor = Colors.red.withOpacity(0.2);
+        cardColor = Colors.red.withValues(alpha: 0.2);
         icon = Icons.error;
         title = '錯誤';
         break;
       case RecordingType.manualStop:
-        cardColor = Colors.teal.withOpacity(0.2);
+        cardColor = Colors.teal.withValues(alpha: 0.2);
         icon = Icons.stop;
         title = '手動停止語音';
         canPlay = recording.samples != null && recording.samples!.isNotEmpty;
         break;
       case RecordingType.silenceThresholdReached:
-        cardColor = Colors.amber.withOpacity(0.2);
+        cardColor = Colors.amber.withValues(alpha: 0.2);
         icon = Icons.volume_off;
         title = '已達靜音閾值';
         break;
@@ -252,7 +252,7 @@ class _VadUIState extends State<VadUI> {
       actions.add(
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: IconButton(
@@ -274,7 +274,7 @@ class _VadUIState extends State<VadUI> {
         Container(
           margin: const EdgeInsets.only(left: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: IconButton(
@@ -303,7 +303,7 @@ class _VadUIState extends State<VadUI> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 28, color: Colors.white),
@@ -320,7 +320,7 @@ class _VadUIState extends State<VadUI> {
           '${recording.timestamp.hour.toString().padLeft(2, '0')}:${recording.timestamp.minute.toString().padLeft(2, '0')}:${recording.timestamp.second.toString().padLeft(2, '0')}',
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withValues(alpha: 0.7),
           ),
         ),
         trailing: actions.isEmpty
@@ -359,7 +359,7 @@ class _VadUIState extends State<VadUI> {
               color: Theme.of(context).cardColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),

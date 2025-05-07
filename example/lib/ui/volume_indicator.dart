@@ -48,7 +48,7 @@ class VolumeIndicator extends StatelessWidget {
               barColor = Colors.red; // 高音量：紅色
             }
           } else {
-            barColor = Colors.grey.withOpacity(0.3); // 非活動狀態：灰色
+            barColor = Colors.grey.withValues(alpha: 0.3); // 非活動狀態：灰色
           }
 
           // 根據索引計算條的高度，使中間的條更高
@@ -98,7 +98,7 @@ class VolumeIndicatorWithLabel extends StatelessWidget {
           width: width,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: ClipRRect(
@@ -131,8 +131,8 @@ class VolumeIndicatorWithLabel extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.white.withOpacity(0.2),
-                        Colors.white.withOpacity(0.0),
+                        Colors.white.withValues(alpha: 0.2),
+                        Colors.white.withValues(alpha: 0.0),
                       ],
                     ),
                   ),
