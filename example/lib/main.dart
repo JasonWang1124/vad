@@ -104,8 +104,8 @@ class _VadManagerState extends State<VadManager> {
       negativeSpeechThreshold: settings.negativeSpeechThreshold,
       submitUserSpeechOnPause: settings.submitUserSpeechOnPause,
       model: settings.modelString,
-      baseAssetPath: 'assets/packages/vad/assets/',
-      onnxWASMBasePath: 'assets/packages/vad/assets/',
+      baseAssetPath: 'packages/vad/assets/',
+      onnxWASMBasePath: 'packages/vad/assets/',
       audioGain: settings.audioGain,
     );
     setState(() {

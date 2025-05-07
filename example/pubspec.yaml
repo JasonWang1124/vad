@@ -40,6 +40,7 @@ dependencies:
   vad:
     path: ../
   path_provider: ^2.1.5
+  onnxruntime: ^1.4.1
 
 dev_dependencies:
   flutter_test:
@@ -63,9 +64,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-#  # To add assets to your application, add an assets section, like this:
-#  assets:
-#    - assets/
+  # To add assets to your application, add an assets section, like this:
+  assets:
+    - packages/vad/assets/silero_vad_legacy.onnx
+    - packages/vad/assets/silero_vad_v5.onnx
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -1,7 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+
+    <!-- 強制使用ONNX Runtime庫，雖然minSdk不匹配（可能導致運行時錯誤） -->
+    <uses-sdk tools:overrideLibrary="ai.onnxruntime" />
 
     <application
         android:label="vad_example"

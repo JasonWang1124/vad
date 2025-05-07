@@ -28,14 +28,14 @@ dev_dependencies:
 
 flutter:
   assets:
-    - packages/vad/assets/silero_vad_legacy.onnx
-    - packages/vad/assets/silero_vad_v5.onnx
-    - packages/vad/assets/bundle.min.js
-    - packages/vad/assets/vad.worklet.bundle.min.js
-    - packages/vad/assets/vad_web.js
-    - packages/vad/assets/ort.js
-    - packages/vad/assets/ort-wasm-simd.wasm
-    - packages/vad/assets/ort-wasm-simd-threaded.wasm
+    - lib/assets/silero_vad_legacy.onnx
+    - lib/assets/silero_vad_v5.onnx
+    - lib/assets/bundle.min.js
+    - lib/assets/vad.worklet.bundle.min.js
+    - lib/assets/vad_web.js
+    - lib/assets/ort.js
+    - lib/assets/ort-wasm-simd.wasm
+    - lib/assets/ort-wasm-simd-threaded.wasm
 
 topics:
   - vad

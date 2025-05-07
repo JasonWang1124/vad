@@ -27,11 +27,10 @@ class VadHandlerNonWeb implements VadHandlerBase {
   static const int sampleRate = 16000;
 
   /// Default Silero VAD Legacy (v4) model path (used for non-web)
-  static const String vadLegacyModelPath =
-      'packages/vad/assets/silero_vad_legacy.onnx';
+  static const String vadLegacyModelPath = 'lib/assets/silero_vad_legacy.onnx';
 
   /// Default Silero VAD V5 model path (used for non-web)
-  static const String vadV5ModelPath = 'packages/vad/assets/silero_vad_v5.onnx';
+  static const String vadV5ModelPath = 'lib/assets/silero_vad_v5.onnx';
 
   final _onSpeechEndController = StreamController<List<double>>.broadcast();
   final _onFrameProcessedController = StreamController<
@@ -180,59 +179,98 @@ class VadHandlerNonWeb implements VadHandlerBase {
       String baseAssetPath = 'assets/packages/vad/assets/',
       String onnxWASMBasePath = 'assets/packages/vad/assets/',
       double audioGain = 1.0}) async {
-    if (!_isInitialized) {
-      _vadIterator = VadIterator.create(
-        isDebug: isDebug,
-        sampleRate: sampleRate,
-        frameSamples: frameSamples,
-        positiveSpeechThreshold: positiveSpeechThreshold,
-        negativeSpeechThreshold: negativeSpeechThreshold,
-        redemptionFrames: redemptionFrames,
-        preSpeechPadFrames: preSpeechPadFrames,
-        minSpeechFrames: minSpeechFrames,
-        submitUserSpeechOnPause: submitUserSpeechOnPause,
-        model: model,
-        audioGain: audioGain,
-      );
-      if (modelPath.isEmpty) {
-        if (model == 'v5') {
-          modelPath = vadV5ModelPath;
-        } else {
-          modelPath = vadLegacyModelPath;
+    try {
+      if (!_isInitialized) {
+        if (isDebug) debugPrint('VadHandlerNonWeb: 初始化 VAD');
+        _vadIterator = VadIterator.create(
+          isDebug: isDebug,
+          sampleRate: sampleRate,
+          frameSamples: frameSamples,
+          positiveSpeechThreshold: positiveSpeechThreshold,
+          negativeSpeechThreshold: negativeSpeechThreshold,
+          redemptionFrames: redemptionFrames,
+          preSpeechPadFrames: preSpeechPadFrames,
+          minSpeechFrames: minSpeechFrames,
+          submitUserSpeechOnPause: submitUserSpeechOnPause,
+          model: model,
+          audioGain: audioGain,
+        );
+
+        // 設定模型路徑
+        if (modelPath.isEmpty) {
+          // 基於所選模型類型選擇預設路徑
+          String baseModelPath;
+          if (model == 'v5') {
+            baseModelPath = 'silero_vad_v5.onnx';
+          } else {
+            baseModelPath = 'silero_vad_legacy.onnx';
+          }
+
+          // 尋找不同的路徑格式
+          if (isDebug) debugPrint('VadHandlerNonWeb: 使用自動模型路徑');
+
+          // 嘗試標準包路徑格式 (這會在 pubspec.yaml 中的資源設定下工作)
+          modelPath = 'packages/vad/assets/$baseModelPath';
+
+          if (isDebug) debugPrint('VadHandlerNonWeb: 設定模型路徑為: $modelPath');
         }
+
+        if (isDebug) debugPrint('VadHandlerNonWeb: 使用模型路徑: $modelPath');
+
+        try {
+          await _vadIterator.initModel(modelPath);
+          if (isDebug) debugPrint('VadHandlerNonWeb: 模型初始化成功');
+        } catch (modelError) {
+          if (isDebug) debugPrint('VadHandlerNonWeb: 模型初始化失敗: $modelError');
+          _onErrorController.add('VadHandlerNonWeb: 模型初始化失敗: $modelError');
+          rethrow;
+        }
+
+        _vadIterator.setVadEventCallback(_handleVadEvent);
+        _submitUserSpeechOnPause = submitUserSpeechOnPause;
+        _isInitialized = true;
+      } else {
+        // 如果已經初始化，只更新音訊增益
+        _vadIterator.audioGain = audioGain;
       }
-      await _vadIterator.initModel(modelPath);
-      _vadIterator.setVadEventCallback(_handleVadEvent);
-      _submitUserSpeechOnPause = submitUserSpeechOnPause;
-      _isInitialized = true;
-    } else {
-      // 如果已經初始化，只更新音訊增益
-      _vadIterator.audioGain = audioGain;
-    }
 
-    bool hasPermission = await _audioRecorder.hasPermission();
-    if (!hasPermission) {
-      _onErrorController
-          .add('VadHandlerNonWeb: No permission to record audio.');
-      if (isDebug) {
-        debugPrint('VadHandlerNonWeb: No permission to record audio.');
+      // 檢查錄音權限
+      if (isDebug) debugPrint('VadHandlerNonWeb: 檢查錄音權限');
+      bool hasPermission = await _audioRecorder.hasPermission();
+      if (!hasPermission) {
+        const errorMsg = 'VadHandlerNonWeb: 沒有錄音權限';
+        if (isDebug) debugPrint(errorMsg);
+        _onErrorController.add(errorMsg);
+        return;
       }
-      return;
+
+      // 開始錄音流
+      if (isDebug) debugPrint('VadHandlerNonWeb: 開始錄音流');
+      final stream = await _audioRecorder.startStream(const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: sampleRate,
+          bitRate: 16,
+          numChannels: 1,
+          echoCancel: true,
+          autoGain: true,
+          noiseSuppress: true));
+
+      _audioStreamSubscription = stream.listen(
+        (data) async {
+          await _vadIterator.processAudioData(data);
+        },
+        onError: (e) {
+          if (isDebug) debugPrint('VadHandlerNonWeb: 錄音流錯誤: $e');
+          _onErrorController.add('錄音流錯誤: $e');
+        },
+      );
+
+      if (isDebug) debugPrint('VadHandlerNonWeb: 開始偵測語音');
+    } catch (e) {
+      if (isDebug) debugPrint('VadHandlerNonWeb: startListening 異常: $e');
+      _onErrorController.add('初始化語音偵測時發生錯誤: $e');
+      rethrow;
     }
-
-    // Start recording with a stream
-    final stream = await _audioRecorder.startStream(const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: sampleRate,
-        bitRate: 16,
-        numChannels: 1,
-        echoCancel: true,
-        autoGain: true,
-        noiseSuppress: true));
-
-    _audioStreamSubscription = stream.listen((data) async {
-      await _vadIterator.processAudioData(data);
-    });
   }
 
   @override

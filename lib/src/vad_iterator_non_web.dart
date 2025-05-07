@@ -117,21 +117,90 @@ class VadIteratorNonWeb implements VadIteratorBase {
   @override
   Future<void> initModel(String modelPath) async {
     try {
+      if (isDebug) debugPrint('VAD: 初始化模型，路徑: $modelPath');
+
       _sessionOptions = OrtSessionOptions()
         ..setInterOpNumThreads(1)
         ..setIntraOpNumThreads(1)
         ..setSessionGraphOptimizationLevel(GraphOptimizationLevel.ortEnableAll);
-      final rawAssetFile = await rootBundle.load(modelPath);
-      final bytes = rawAssetFile.buffer.asUint8List();
-      _session = OrtSession.fromBuffer(bytes, _sessionOptions!);
-      if (isDebug) debugPrint('VAD model initialized from $modelPath.');
+
+      // 可能的路徑格式列表，將依次嘗試
+      final possiblePaths = <String>[];
+
+      // 1. 原始路徑
+      possiblePaths.add(modelPath);
+
+      // 2. 處理包路徑格式
+      if (modelPath.startsWith('packages/vad/assets/')) {
+        // 2.1 轉換為 lib/assets 格式
+        possiblePaths
+            .add(modelPath.replaceAll('packages/vad/assets/', 'lib/assets/'));
+
+        // 2.2 轉換為絕對路徑格式
+        possiblePaths.add('assets/${modelPath.split('/').last}');
+
+        // 2.3 Android 特殊格式
+        possiblePaths.add(modelPath.replaceAll('packages/', ''));
+      } else {
+        // 3. 處理非包路徑格式
+        final fileName = modelPath.split('/').last;
+
+        // 3.1 嘗試包路徑格式
+        possiblePaths.add('packages/vad/assets/$fileName');
+
+        // 3.2 嘗試 lib/assets 格式
+        possiblePaths.add('lib/assets/$fileName');
+
+        // 3.3 嘗試絕對路徑格式
+        possiblePaths.add('assets/$fileName');
+
+        // 3.4 處理相對路徑情況
+        if (!modelPath.contains('/')) {
+          possiblePaths.add('lib/assets/$modelPath');
+          possiblePaths.add('assets/$modelPath');
+        }
+      }
+
+      // 移除重複路徑
+      final uniquePaths = possiblePaths.toSet().toList();
+
+      if (isDebug) {
+        debugPrint('VAD: 將嘗試以下路徑：');
+        for (var path in uniquePaths) {
+          debugPrint('  - $path');
+        }
+      }
+
+      // 儲存最後發生的錯誤，以便在全部嘗試失敗時重新拋出
+      dynamic lastError;
+
+      // 依次嘗試每個可能的路徑
+      for (var path in uniquePaths) {
+        try {
+          if (isDebug) debugPrint('VAD: 嘗試載入路徑: $path');
+          final rawAssetFile = await rootBundle.load(path);
+          final bytes = rawAssetFile.buffer.asUint8List();
+          _session = OrtSession.fromBuffer(bytes, _sessionOptions!);
+          if (isDebug) debugPrint('VAD: 成功從路徑初始化模型: $path');
+          return; // 成功後立即返回
+        } catch (e) {
+          if (isDebug) debugPrint('VAD: 路徑 $path 載入失敗: $e');
+          lastError = e;
+          // 繼續嘗試下一個路徑
+        }
+      }
+
+      // 所有路徑都嘗試失敗
+      throw lastError ?? Exception('無法載入模型，所有可能的路徑均失敗');
     } catch (e) {
-      debugPrint('VAD model initialization failed: $e');
+      final errorMessage = 'VAD model initialization failed: $e';
+      debugPrint(errorMessage);
       onVadEvent?.call(VadEvent(
         type: VadEventType.error,
         timestamp: _getCurrentTimestamp(),
-        message: 'VAD model initialization failed: $e',
+        message: errorMessage,
       ));
+      rethrow;
     }
   }
 
