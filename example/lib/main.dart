@@ -103,7 +103,7 @@ class _VadManagerState extends State<VadManager> {
       positiveSpeechThreshold: settings.positiveSpeechThreshold,
       negativeSpeechThreshold: settings.negativeSpeechThreshold,
       submitUserSpeechOnPause: settings.submitUserSpeechOnPause,
-      model: settings.modelString,
+      model: "silero_vad_v5.onnx", // 使用確切的檔案名稱
       baseAssetPath: 'packages/vad/assets/',
       onnxWASMBasePath: 'packages/vad/assets/',
       audioGain: settings.audioGain,

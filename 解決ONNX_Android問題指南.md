@@ -17,7 +17,7 @@ ArgumentError (Invalid argument(s): Failed to load dynamic library 'libonnxrunti
 
 ### 1. 在Android項目中添加ONNX Runtime依賴
 
-我們修改了 `example/android/app/build.gradle` 文件，添加了官方的ONNX Runtime Android依賴：
+我們修改了 `android/app/build.gradle` 文件，添加了官方的ONNX Runtime Android依賴：
 
 ```gradle
 dependencies {

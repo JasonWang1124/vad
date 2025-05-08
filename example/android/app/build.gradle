@@ -63,5 +63,6 @@ flutter {
 
 // 添加ONNX Runtime依賴
 dependencies {
-    implementation 'com.microsoft.onnxruntime:onnxruntime-android:latest.release'
+    // 使用直接從Maven下載的ONNX版本，不指定具體版本
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:+'
 }
