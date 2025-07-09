@@ -6,6 +6,7 @@ import 'package:vad/src/vad_iterator_base.dart';
 /// Only added for compatibility with non-web platforms
 class VadIteratorWeb implements VadIteratorBase {
   double _audioGain = 1.0;
+  bool _realtimeGainEnabled = false;
 
   @override
   double get audioGain => _audioGain;
@@ -14,6 +15,15 @@ class VadIteratorWeb implements VadIteratorBase {
   set audioGain(double value) {
     _audioGain = value;
   }
+
+  @override
+  void setRealtimeGainEnabled(bool enabled) {
+    _realtimeGainEnabled = enabled;
+    // Web 版本不支援即時增益，僅保存狀態以保持相容性
+  }
+
+  @override
+  bool get isRealtimeGainEnabled => _realtimeGainEnabled;
 
   @override
   void forceEndSpeech() {
@@ -63,6 +73,10 @@ VadIteratorBase createVadIterator(
     required int minSpeechFrames,
     required bool submitUserSpeechOnPause,
     required String model,
-    double audioGain = 1.0}) {
-  return VadIteratorWeb();
+    double audioGain = 1.0,
+    bool realtimeGainEnabled = false}) {
+  final iterator = VadIteratorWeb();
+  iterator.audioGain = audioGain;
+  iterator.setRealtimeGainEnabled(realtimeGainEnabled);
+  return iterator;
 }

@@ -33,6 +33,9 @@ class VadSettings {
   // 音訊增益
   double audioGain;
 
+  // 即時增益開關
+  bool realtimeGainEnabled;
+
   VadSettings({
     this.model = RecordingModel.v5,
     this.frameSamples = 512,
@@ -44,6 +47,7 @@ class VadSettings {
     this.submitUserSpeechOnPause = false,
     this.silenceThresholdSeconds = 7.0,
     this.audioGain = 1.0,
+    this.realtimeGainEnabled = true,
   });
 
   // Clone the settings
@@ -59,6 +63,7 @@ class VadSettings {
       submitUserSpeechOnPause: submitUserSpeechOnPause,
       silenceThresholdSeconds: silenceThresholdSeconds,
       audioGain: audioGain,
+      realtimeGainEnabled: realtimeGainEnabled,
     );
   }
 
@@ -83,6 +88,7 @@ class VadSettings {
     }
     silenceThresholdSeconds = 3.0;
     audioGain = 1.0;
+    realtimeGainEnabled = true;
   }
 
   // 應用嘈雜環境的預設參數
@@ -562,6 +568,37 @@ class _VadSettingsDialogState extends State<VadSettingsDialog> {
             ),
             Text(
                 '放大輸出音訊的倍率 (預設: 1.0${tempSettings.audioGain != 1.0 ? ", 目前: ${tempSettings.audioGain.toStringAsFixed(1)}倍" : ""})'),
+            const SizedBox(height: 16),
+
+            // 即時增益開關
+            Row(
+              children: [
+                Checkbox(
+                  value: tempSettings.realtimeGainEnabled,
+                  onChanged: (value) {
+                    setState(() {
+                      tempSettings.realtimeGainEnabled = value ?? false;
+                    });
+                  },
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('即時增益',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        '在麥克風收音時即時放大音訊，而非在 VAD 處理後才放大',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
           ],
         ),

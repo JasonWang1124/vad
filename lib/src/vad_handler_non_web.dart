@@ -178,7 +178,8 @@ class VadHandlerNonWeb implements VadHandlerBase {
       String model = 'legacy',
       String baseAssetPath = 'assets/packages/vad/assets/',
       String onnxWASMBasePath = 'assets/packages/vad/assets/',
-      double audioGain = 1.0}) async {
+      double audioGain = 1.0,
+      bool realtimeGainEnabled = false}) async {
     try {
       if (!_isInitialized) {
         if (isDebug) debugPrint('VadHandlerNonWeb: 初始化 VAD');
@@ -230,6 +231,13 @@ class VadHandlerNonWeb implements VadHandlerBase {
         if (isDebug) debugPrint('VadHandlerNonWeb: 重置 VAD 狀態');
       }
 
+      // 設定即時增益
+      _vadIterator.setRealtimeGainEnabled(realtimeGainEnabled);
+      if (isDebug) {
+        debugPrint(
+            'VadHandlerNonWeb: 即時增益${realtimeGainEnabled ? "已啟用" : "已停用"}');
+      }
+
       // 檢查錄音權限
       if (isDebug) debugPrint('VadHandlerNonWeb: 檢查錄音權限');
       bool hasPermission = await _audioRecorder.hasPermission();
@@ -267,6 +275,23 @@ class VadHandlerNonWeb implements VadHandlerBase {
       _onErrorController.add('初始化語音偵測時發生錯誤: $e');
       rethrow;
     }
+  }
+
+  /// Enable or disable real-time gain application
+  @override
+  void setRealtimeGainEnabled(bool enabled) {
+    if (_isInitialized) {
+      _vadIterator.setRealtimeGainEnabled(enabled);
+      if (isDebug) {
+        debugPrint('VadHandlerNonWeb: 即時增益${enabled ? "已啟用" : "已停用"}');
+      }
+    }
+  }
+
+  /// Get current real-time gain status
+  @override
+  bool get isRealtimeGainEnabled {
+    return _isInitialized ? _vadIterator.isRealtimeGainEnabled : false;
   }
 
   @override

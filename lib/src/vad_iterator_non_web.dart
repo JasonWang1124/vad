@@ -49,6 +49,9 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Audio gain to apply to output audio samples
   double _audioGain = 1.0;
 
+  /// Whether to apply gain in real-time (before VAD processing)
+  bool _realtimeGainEnabled = false;
+
   @override
   double get audioGain => _audioGain;
 
@@ -56,6 +59,19 @@ class VadIteratorNonWeb implements VadIteratorBase {
   set audioGain(double value) {
     _audioGain = value;
   }
+
+  /// Enable or disable real-time gain application
+  @override
+  void setRealtimeGainEnabled(bool enabled) {
+    _realtimeGainEnabled = enabled;
+    if (isDebug) {
+      debugPrint('Real-time gain ${enabled ? "enabled" : "disabled"}');
+    }
+  }
+
+  /// Get current real-time gain status
+  @override
+  bool get isRealtimeGainEnabled => _realtimeGainEnabled;
 
   // Internal variables
   /// Flag to indicate speech detection state.
@@ -274,9 +290,31 @@ class VadIteratorNonWeb implements VadIteratorBase {
     while (_byteBuffer.length >= frameByteCount) {
       final frameBytes = _byteBuffer.sublist(0, frameByteCount);
       _byteBuffer.removeRange(0, frameByteCount);
+
       final frameData = _convertBytesToFloat32(Uint8List.fromList(frameBytes));
-      await _processFrame(Float32List.fromList(frameData));
+
+      // 如果啟用即時增益，在 VAD 處理前應用增益
+      final processedFrameData =
+          _realtimeGainEnabled ? _applyRealtimeGain(frameData) : frameData;
+
+      await _processFrame(Float32List.fromList(processedFrameData));
     }
+  }
+
+  /// Apply real-time gain to audio frame before VAD processing
+  List<double> _applyRealtimeGain(List<double> frameData) {
+    if (_audioGain == 1.0) return frameData;
+
+    // 分析並找到最佳增益值以避免失真
+    final optimalGain = _getOptimalGain(frameData, _audioGain);
+
+    if (isDebug && optimalGain != _audioGain) {
+      debugPrint(
+          'Real-time gain adjusted from ${_audioGain.toStringAsFixed(2)} to ${optimalGain.toStringAsFixed(2)} to reduce distortion');
+    }
+
+    // 應用軟壓縮和優化後的增益
+    return frameData.map((sample) => _softClip(sample, optimalGain)).toList();
   }
 
   /// Process a single frame of audio data.
@@ -698,8 +736,9 @@ VadIteratorBase createVadIterator({
   required bool submitUserSpeechOnPause,
   required String model,
   double audioGain = 1.0,
+  bool realtimeGainEnabled = false,
 }) {
-  return VadIteratorNonWeb(
+  final iterator = VadIteratorNonWeb(
     isDebug: isDebug,
     sampleRate: sampleRate,
     frameSamples: frameSamples,
@@ -712,4 +751,9 @@ VadIteratorBase createVadIterator({
     model: model,
     audioGain: audioGain,
   );
+
+  // 設定即時增益
+  iterator.setRealtimeGainEnabled(realtimeGainEnabled);
+
+  return iterator;
 }

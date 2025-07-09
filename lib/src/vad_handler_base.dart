@@ -41,10 +41,17 @@ abstract class VadHandlerBase {
       String model = 'legacy',
       String baseAssetPath = 'assets/packages/vad/assets/',
       String onnxWASMBasePath = 'assets/packages/vad/assets/',
-      double audioGain = 1.0});
+      double audioGain = 1.0,
+      bool realtimeGainEnabled = false});
 
   /// Stop listening for speech events
   void stopListening();
+
+  /// Enable or disable real-time gain application
+  void setRealtimeGainEnabled(bool enabled);
+
+  /// Get current real-time gain status
+  bool get isRealtimeGainEnabled;
 
   /// Manually stop speech detection and get audio data when VAD has detected speech start
   /// Returns the audio data if speech was detected, otherwise returns null

@@ -112,7 +112,8 @@ class VadHandlerWeb implements VadHandlerBase {
       String model = 'legacy',
       String baseAssetPath = 'assets/packages/vad/assets/',
       String onnxWASMBasePath = 'assets/packages/vad/assets/',
-      double audioGain = 1.0}) {
+      double audioGain = 1.0,
+      bool realtimeGainEnabled = false}) {
     if (isDebug) {
       debugPrint(
           'VadHandlerWeb: startListening: Calling startListeningImpl with parameters: '
@@ -126,9 +127,10 @@ class VadHandlerWeb implements VadHandlerBase {
           'model: $model, '
           'baseAssetPath: $baseAssetPath, '
           'onnxWASMBasePath: $onnxWASMBasePath, '
-          'audioGain: $audioGain');
+          'audioGain: $audioGain, '
+          'realtimeGainEnabled: $realtimeGainEnabled');
     }
-    // Web 版本目前忽略 audioGain 參數，因為音訊處理在 JavaScript 中完成
+    // Web 版本目前忽略 audioGain 和 realtimeGainEnabled 參數，因為音訊處理在 JavaScript 中完成
     // 如果需要在 Web 版本中支援音訊增益，需要修改 JS 部分
     startListeningImpl(
         positiveSpeechThreshold,
@@ -142,6 +144,20 @@ class VadHandlerWeb implements VadHandlerBase {
         baseAssetPath,
         onnxWASMBasePath);
   }
+
+  /// Enable or disable real-time gain application
+  /// Note: Web version does not support real-time gain yet
+  @override
+  void setRealtimeGainEnabled(bool enabled) {
+    if (isDebug) {
+      debugPrint('VadHandlerWeb: Real-time gain not supported on web platform');
+    }
+  }
+
+  /// Get current real-time gain status
+  /// Note: Web version does not support real-time gain yet
+  @override
+  bool get isRealtimeGainEnabled => false;
 
   /// Handle an event from the JS side
   void handleEvent(String eventType, String payload) {

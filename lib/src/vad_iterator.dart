@@ -17,7 +17,8 @@ class VadIterator {
       required int minSpeechFrames,
       required bool submitUserSpeechOnPause,
       required String model,
-      double audioGain = 1.0}) {
+      double audioGain = 1.0,
+      bool realtimeGainEnabled = false}) {
     return implementation.createVadIterator(
         isDebug: isDebug,
         sampleRate: sampleRate,
@@ -29,6 +30,7 @@ class VadIterator {
         minSpeechFrames: minSpeechFrames,
         submitUserSpeechOnPause: submitUserSpeechOnPause,
         model: model,
-        audioGain: audioGain);
+        audioGain: audioGain,
+        realtimeGainEnabled: realtimeGainEnabled);
   }
 }

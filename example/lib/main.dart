@@ -113,6 +113,7 @@ class _VadManagerState extends State<VadManager> {
       baseAssetPath: 'packages/vad/assets/',
       onnxWASMBasePath: 'packages/vad/assets/',
       audioGain: settings.audioGain,
+      realtimeGainEnabled: settings.realtimeGainEnabled,
     );
     setState(() {
       isListening = true;
@@ -261,26 +262,25 @@ class _VadManagerState extends State<VadManager> {
 
     bool wasListening = isListening;
 
-    if (isListening) {
-      _vadHandler.stopListening();
-      isListening = false;
+    // 如果正在監聽，先停止
+    if (wasListening) {
+      _stopListening();
     }
 
-    // 先更新設置
+    // 更新設定
     setState(() {
       settings = newSettings;
     });
 
-    // 確保在釋放前停止所有活動
-    _vadHandler.dispose();
-
-    // 重新初始化VAD
+    // 重新初始化 VAD
     _initializeVad();
 
-    // 如果之前在監聽，則重新開始監聽
+    // 如果之前在監聽，重新開始
     if (wasListening) {
       _startListening();
     }
+
+    debugPrint('Settings applied: $newSettings');
   }
 
   void _showSettingsDialog() {

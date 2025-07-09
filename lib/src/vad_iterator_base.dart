@@ -13,6 +13,12 @@ abstract class VadIteratorBase {
   /// Set audio gain value
   set audioGain(double value);
 
+  /// Enable or disable real-time gain application (before VAD processing)
+  void setRealtimeGainEnabled(bool enabled);
+
+  /// Get current real-time gain status
+  bool get isRealtimeGainEnabled;
+
   /// Initialize the VAD model from the given [modelPath].
   Future<void> initModel(String modelPath);
 
