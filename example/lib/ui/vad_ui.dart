@@ -32,6 +32,14 @@ class VadUI extends StatefulWidget {
   final Function() onShowSettingsDialog;
   final VadUIController? controller;
 
+  // 新增持續錄音模式控制回調
+  final Function()? onEnableContinuousRecording;
+  final Function()? onQuickStartVad;
+  final Function()? onQuickStopVad;
+  final Function()? onDisableContinuousRecording;
+  final bool? isContinuousRecordingMode;
+  final bool? isVadProcessingEnabled;
+
   const VadUI({
     super.key,
     required this.recordings,
@@ -46,6 +54,12 @@ class VadUI extends StatefulWidget {
     required this.onRequestMicrophonePermission,
     required this.onShowSettingsDialog,
     this.controller,
+    this.onEnableContinuousRecording,
+    this.onQuickStartVad,
+    this.onQuickStopVad,
+    this.onDisableContinuousRecording,
+    this.isContinuousRecordingMode,
+    this.isVadProcessingEnabled,
   });
 
   @override
@@ -423,6 +437,140 @@ class _VadUIState extends State<VadUI> {
                     ),
                   ),
                 ),
+
+                // 持續錄音模式控制區域
+                if (widget.onEnableContinuousRecording != null) ...[
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    '持續錄音模式 (幾乎 0 冷啟動)',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  Text(
+                    '音訊流保持活躍，VAD 處理可快速開關',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 持續錄音模式狀態顯示
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: (widget.isContinuousRecordingMode ?? false)
+                          ? Colors.green.withValues(alpha: 0.1)
+                          : Colors.grey.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (widget.isContinuousRecordingMode ?? false)
+                            ? Colors.green
+                            : Colors.grey,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          (widget.isContinuousRecordingMode ?? false)
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: (widget.isContinuousRecordingMode ?? false)
+                              ? Colors.green
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '持續錄音: ${(widget.isContinuousRecordingMode ?? false) ? "已啟用" : "已停用"}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                'VAD 處理: ${(widget.isVadProcessingEnabled ?? true) ? "已啟用" : "已停用"}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 持續錄音模式控制按鈕
+                  if (!(widget.isContinuousRecordingMode ?? false)) ...[
+                    // 啟用持續錄音模式
+                    ElevatedButton.icon(
+                      onPressed: widget.onEnableContinuousRecording,
+                      icon: const Icon(Icons.settings_backup_restore),
+                      label: const Text('啟用持續錄音模式'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 16),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    // 持續錄音模式已啟用時的控制按鈕
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: (widget.isVadProcessingEnabled ?? true)
+                                ? widget.onQuickStopVad
+                                : widget.onQuickStartVad,
+                            icon: Icon((widget.isVadProcessingEnabled ?? true)
+                                ? Icons.pause
+                                : Icons.play_arrow),
+                            label: Text((widget.isVadProcessingEnabled ?? true)
+                                ? '快速停止'
+                                : '快速啟動'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  (widget.isVadProcessingEnabled ?? true)
+                                      ? Colors.orange
+                                      : Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: widget.onDisableContinuousRecording,
+                            icon: const Icon(Icons.stop),
+                            label: const Text('停用模式'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
 
                 // 添加音量指示器
                 if (widget.isListening) ...[

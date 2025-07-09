@@ -52,6 +52,12 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Whether to apply gain in real-time (before VAD processing)
   bool _realtimeGainEnabled = false;
 
+  /// Whether VAD processing is enabled (can be toggled while audio stream continues)
+  bool _vadProcessingEnabled = true;
+
+  /// Whether continuous recording mode is enabled
+  bool _continuousRecordingMode = false;
+
   @override
   double get audioGain => _audioGain;
 
@@ -72,6 +78,33 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Get current real-time gain status
   @override
   bool get isRealtimeGainEnabled => _realtimeGainEnabled;
+
+  /// Enable or disable VAD processing while keeping audio stream active
+  @override
+  void setVadProcessingEnabled(bool enabled) {
+    _vadProcessingEnabled = enabled;
+    if (isDebug) {
+      debugPrint('VAD processing ${enabled ? "enabled" : "disabled"}');
+    }
+  }
+
+  /// Get current VAD processing status
+  @override
+  bool get isVadProcessingEnabled => _vadProcessingEnabled;
+
+  /// Enable continuous recording mode (audio stream always active)
+  @override
+  void setContinuousRecordingMode(bool enabled) {
+    _continuousRecordingMode = enabled;
+    if (isDebug) {
+      debugPrint(
+          'Continuous recording mode ${enabled ? "enabled" : "disabled"}');
+    }
+  }
+
+  /// Get continuous recording mode status
+  @override
+  bool get isContinuousRecordingMode => _continuousRecordingMode;
 
   // Internal variables
   /// Flag to indicate speech detection state.
@@ -297,7 +330,13 @@ class VadIteratorNonWeb implements VadIteratorBase {
       final processedFrameData =
           _realtimeGainEnabled ? _applyRealtimeGain(frameData) : frameData;
 
-      await _processFrame(Float32List.fromList(processedFrameData));
+      // 只有在 VAD 處理啟用時才進行 VAD 分析
+      if (_vadProcessingEnabled) {
+        await _processFrame(Float32List.fromList(processedFrameData));
+      } else {
+        // VAD 處理停用時，仍然發送原始音訊幀事件（用於監控或其他用途）
+        _emitRawFrameEvent(Float32List.fromList(processedFrameData));
+      }
     }
   }
 
@@ -315,6 +354,29 @@ class VadIteratorNonWeb implements VadIteratorBase {
 
     // 應用軟壓縮和優化後的增益
     return frameData.map((sample) => _softClip(sample, optimalGain)).toList();
+  }
+
+  /// Emit raw frame event when VAD processing is disabled
+  void _emitRawFrameEvent(Float32List frameData) {
+    // 計算分貝值和音量級別
+    final double decibels = _calculateDecibels(frameData.toList());
+    final int volumeLevel = _calculateVolumeLevel(decibels);
+
+    // 發送原始音訊幀事件，但不進行 VAD 分析
+    onVadEvent?.call(VadEvent(
+      type: VadEventType.frameProcessed,
+      timestamp: _getCurrentTimestamp(),
+      message:
+          'Raw frame processed (VAD disabled) at ${_getCurrentTimestamp().toStringAsFixed(3)}s',
+      probabilities: SpeechProbabilities(
+          isSpeech: 0.0, // VAD 停用時設為 0
+          notSpeech: 1.0, // VAD 停用時設為 1
+          decibels: decibels,
+          volumeLevel: volumeLevel),
+      frameData: frameData.toList(),
+    ));
+
+    _currentSample += frameSamples;
   }
 
   /// Process a single frame of audio data.

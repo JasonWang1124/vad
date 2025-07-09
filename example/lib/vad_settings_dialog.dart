@@ -132,11 +132,13 @@ class VadSettings {
 class VadSettingsDialog extends StatefulWidget {
   final VadSettings settings;
   final Function(VadSettings) onSettingsChanged;
+  final VoidCallback? onCancel;
 
   const VadSettingsDialog({
     super.key,
     required this.settings,
     required this.onSettingsChanged,
+    this.onCancel,
   });
 
   @override
@@ -607,6 +609,7 @@ class _VadSettingsDialogState extends State<VadSettingsDialog> {
         TextButton(
           onPressed: () {
             Navigator.of(context).pop(); // Cancel
+            widget.onCancel?.call(); // 呼叫取消回調
           },
           child: const Text('Cancel'),
         ),

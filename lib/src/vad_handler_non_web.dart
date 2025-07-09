@@ -294,12 +294,60 @@ class VadHandlerNonWeb implements VadHandlerBase {
     return _isInitialized ? _vadIterator.isRealtimeGainEnabled : false;
   }
 
+  /// Enable or disable VAD processing while keeping audio stream active
+  @override
+  void setVadProcessingEnabled(bool enabled) {
+    if (_isInitialized) {
+      _vadIterator.setVadProcessingEnabled(enabled);
+      if (isDebug) {
+        debugPrint('VadHandlerNonWeb: VAD 處理${enabled ? "已啟用" : "已停用"}');
+      }
+    }
+  }
+
+  /// Get current VAD processing status
+  @override
+  bool get isVadProcessingEnabled {
+    return _isInitialized ? _vadIterator.isVadProcessingEnabled : true;
+  }
+
+  /// Enable continuous recording mode (audio stream always active)
+  @override
+  void setContinuousRecordingMode(bool enabled) {
+    if (_isInitialized) {
+      _vadIterator.setContinuousRecordingMode(enabled);
+      if (isDebug) {
+        debugPrint('VadHandlerNonWeb: 持續錄音模式${enabled ? "已啟用" : "已停用"}');
+      }
+    }
+  }
+
+  /// Get continuous recording mode status
+  @override
+  bool get isContinuousRecordingMode {
+    return _isInitialized ? _vadIterator.isContinuousRecordingMode : false;
+  }
+
   @override
   Future<void> stopListening() async {
     if (isDebug) debugPrint('stopListening');
     try {
       // 確保只有在已初始化的情況下才訪問_vadIterator
       if (_isInitialized) {
+        // 如果啟用持續錄音模式，只停用 VAD 處理而不停止音訊流
+        if (_vadIterator.isContinuousRecordingMode) {
+          if (isDebug) debugPrint('持續錄音模式：僅停用 VAD 處理，保持音訊流');
+          _vadIterator.setVadProcessingEnabled(false);
+
+          // 重置 VAD 狀態但保持音訊流
+          if (_submitUserSpeechOnPause) {
+            _vadIterator.forceEndSpeech();
+          }
+          _vadIterator.reset();
+          return;
+        }
+
+        // 傳統模式：完全停止
         // Before stopping the audio stream, handle forced speech end if needed
         if (_submitUserSpeechOnPause) {
           _vadIterator.forceEndSpeech();

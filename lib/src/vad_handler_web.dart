@@ -155,9 +155,35 @@ class VadHandlerWeb implements VadHandlerBase {
   }
 
   /// Get current real-time gain status
-  /// Note: Web version does not support real-time gain yet
   @override
   bool get isRealtimeGainEnabled => false;
+
+  /// Enable or disable VAD processing while keeping audio stream active
+  @override
+  void setVadProcessingEnabled(bool enabled) {
+    // Web 版本不支援條件式 VAD 處理
+    if (isDebug) {
+      debugPrint('VadHandlerWeb: setVadProcessingEnabled not supported on web');
+    }
+  }
+
+  /// Get current VAD processing status
+  @override
+  bool get isVadProcessingEnabled => true;
+
+  /// Enable continuous recording mode (audio stream always active)
+  @override
+  void setContinuousRecordingMode(bool enabled) {
+    // Web 版本不支援持續錄音模式
+    if (isDebug) {
+      debugPrint(
+          'VadHandlerWeb: setContinuousRecordingMode not supported on web');
+    }
+  }
+
+  /// Get continuous recording mode status
+  @override
+  bool get isContinuousRecordingMode => false;
 
   /// Handle an event from the JS side
   void handleEvent(String eventType, String payload) {

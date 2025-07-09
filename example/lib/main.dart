@@ -252,7 +252,8 @@ class _VadManagerState extends State<VadManager> {
     });
   }
 
-  void _applySettings(VadSettings newSettings) {
+  void _applySettings(
+      VadSettings newSettings, bool wasContinuousMode, bool wasVadProcessing) {
     // 強制根據模型同步 frameSamples
     if (newSettings.model == RecordingModel.legacy) {
       newSettings.frameSamples = 1536;
@@ -275,21 +276,148 @@ class _VadManagerState extends State<VadManager> {
     // 重新初始化 VAD
     _initializeVad();
 
-    // 如果之前在監聽，重新開始
-    if (wasListening) {
+    // 根據之前的狀態決定如何重新啟動
+    if (wasContinuousMode) {
+      // 重新啟用持續錄音模式
+      _enableContinuousRecording();
+
+      // 如果之前 VAD 處理是啟用的，重新啟用
+      if (wasVadProcessing) {
+        _quickStartVad();
+      }
+
+      debugPrint('設定已應用：重新啟用持續錄音模式 (VAD處理: $wasVadProcessing)');
+    } else if (wasListening) {
+      // 傳統模式，如果之前在監聽就重新開始
       _startListening();
+      debugPrint('設定已應用：重新啟動傳統監聽模式');
     }
 
     debugPrint('Settings applied: $newSettings');
   }
 
+  /// 設定對話框取消時的處理
+  void _onSettingsDialogCancel(bool wasContinuousMode, bool wasVadProcessing) {
+    // 如果之前是持續錄音模式，恢復該模式
+    if (wasContinuousMode) {
+      _enableContinuousRecording();
+
+      // 如果之前 VAD 處理是啟用的，重新啟用
+      if (wasVadProcessing) {
+        _quickStartVad();
+      }
+
+      debugPrint('設定對話框已取消：恢復持續錄音模式 (VAD處理: $wasVadProcessing)');
+    }
+  }
+
+  /// 啟用持續錄音模式 - 實現幾乎 0 冷啟動
+  void _enableContinuousRecording() {
+    if (_isVadInitialized) {
+      _vadHandler.setContinuousRecordingMode(true);
+
+      // 啟動音訊流但停用 VAD 處理
+      _vadHandler.startListening(
+        frameSamples: settings.frameSamples,
+        minSpeechFrames: settings.minSpeechFrames,
+        preSpeechPadFrames: settings.preSpeechPadFrames,
+        redemptionFrames: settings.redemptionFrames,
+        positiveSpeechThreshold: settings.positiveSpeechThreshold,
+        negativeSpeechThreshold: settings.negativeSpeechThreshold,
+        submitUserSpeechOnPause: settings.submitUserSpeechOnPause,
+        model: settings.modelString,
+        baseAssetPath: 'packages/vad/assets/',
+        onnxWASMBasePath: 'packages/vad/assets/',
+        audioGain: settings.audioGain,
+        realtimeGainEnabled: settings.realtimeGainEnabled,
+      );
+
+      // 停用 VAD 處理，只保持音訊流
+      _vadHandler.setVadProcessingEnabled(false);
+
+      setState(() {
+        isListening = false; // UI 顯示為未監聽狀態
+      });
+
+      debugPrint('持續錄音模式已啟用 - 音訊流保持活躍，VAD 處理已停用');
+    }
+  }
+
+  /// 快速啟動 VAD 處理（幾乎 0 冷啟動）
+  void _quickStartVad() {
+    if (_isVadInitialized && _vadHandler.isContinuousRecordingMode) {
+      // 直接啟用 VAD 處理，無需重新啟動音訊流
+      _vadHandler.setVadProcessingEnabled(true);
+
+      setState(() {
+        isListening = true;
+        isSpeechDetected = false;
+      });
+
+      // 啟動靜音計時器
+      _startSilenceTimer();
+
+      debugPrint('VAD 處理已快速啟動 - 幾乎 0 冷啟動！');
+    } else {
+      // 回退到傳統啟動方式
+      _startListening();
+    }
+  }
+
+  /// 快速停止 VAD 處理（保持音訊流）
+  void _quickStopVad() {
+    if (_isVadInitialized && _vadHandler.isContinuousRecordingMode) {
+      // 只停用 VAD 處理，保持音訊流
+      _vadHandler.setVadProcessingEnabled(false);
+
+      setState(() {
+        isListening = false;
+        isSpeechDetected = false;
+      });
+
+      _stopSilenceTimer();
+      _resetSilenceDetection();
+
+      debugPrint('VAD 處理已快速停止 - 音訊流保持活躍');
+    } else {
+      // 回退到傳統停止方式
+      _stopListening();
+    }
+  }
+
+  /// 完全停止持續錄音模式
+  void _disableContinuousRecording() {
+    if (_isVadInitialized) {
+      _vadHandler.setContinuousRecordingMode(false);
+      _stopListening(); // 完全停止音訊流
+
+      debugPrint('持續錄音模式已停用');
+    }
+  }
+
   void _showSettingsDialog() {
+    // 如果處於持續錄音模式，先停止以避免狀態衝突
+    bool wasContinuousMode = false;
+    bool wasVadProcessing = false;
+
+    if (_isVadInitialized && _vadHandler.isContinuousRecordingMode) {
+      wasContinuousMode = true;
+      wasVadProcessing = _vadHandler.isVadProcessingEnabled;
+
+      // 暫時停止持續錄音模式
+      _disableContinuousRecording();
+      debugPrint('設定對話框開啟：暫時停止持續錄音模式');
+    }
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return VadSettingsDialog(
           settings: settings,
-          onSettingsChanged: _applySettings,
+          onSettingsChanged: (newSettings) =>
+              _applySettings(newSettings, wasContinuousMode, wasVadProcessing),
+          onCancel: () =>
+              _onSettingsDialogCancel(wasContinuousMode, wasVadProcessing),
         );
       },
     );
@@ -320,6 +448,16 @@ class _VadManagerState extends State<VadManager> {
       onRequestMicrophonePermission: _requestMicrophonePermission,
       onShowSettingsDialog: _showSettingsDialog,
       controller: _uiController,
+
+      // 持續錄音模式控制回調
+      onEnableContinuousRecording: _enableContinuousRecording,
+      onQuickStartVad: _quickStartVad,
+      onQuickStopVad: _quickStopVad,
+      onDisableContinuousRecording: _disableContinuousRecording,
+      isContinuousRecordingMode:
+          _isVadInitialized ? _vadHandler.isContinuousRecordingMode : false,
+      isVadProcessingEnabled:
+          _isVadInitialized ? _vadHandler.isVadProcessingEnabled : true,
     );
   }
 

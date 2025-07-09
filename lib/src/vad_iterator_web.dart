@@ -26,6 +26,22 @@ class VadIteratorWeb implements VadIteratorBase {
   bool get isRealtimeGainEnabled => _realtimeGainEnabled;
 
   @override
+  void setVadProcessingEnabled(bool enabled) {
+    // Web 版本不支援條件式 VAD 處理，僅保存狀態以保持相容性
+  }
+
+  @override
+  bool get isVadProcessingEnabled => true;
+
+  @override
+  void setContinuousRecordingMode(bool enabled) {
+    // Web 版本不支援持續錄音模式，僅保存狀態以保持相容性
+  }
+
+  @override
+  bool get isContinuousRecordingMode => false;
+
+  @override
   void forceEndSpeech() {
     throw UnimplementedError();
   }

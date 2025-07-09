@@ -19,6 +19,18 @@ abstract class VadIteratorBase {
   /// Get current real-time gain status
   bool get isRealtimeGainEnabled;
 
+  /// Enable or disable VAD processing while keeping audio stream active
+  void setVadProcessingEnabled(bool enabled);
+
+  /// Get current VAD processing status
+  bool get isVadProcessingEnabled;
+
+  /// Enable continuous recording mode (audio stream always active)
+  void setContinuousRecordingMode(bool enabled);
+
+  /// Get continuous recording mode status
+  bool get isContinuousRecordingMode;
+
   /// Initialize the VAD model from the given [modelPath].
   Future<void> initModel(String modelPath);
 
