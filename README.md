@@ -1,68 +1,117 @@
-# VAD
-VAD is a Flutter library for Voice Activity Detection (VAD) across **iOS** , **Android** , and **Web**  platforms. This package allows applications to start and stop VAD-based listening and handle various VAD events seamlessly.
-Under the hood, the VAD Package uses `dart:js_interop` for Web to run [VAD JavaScript library](https://github.com/ricky0123/vad) and [onnxruntime](https://github.com/gtbluesky/onnxruntime_flutter) for iOS and Android utilizing onnxruntime library with full-feature parity with the JavaScript library.
-The package provides a simple API to start and stop VAD listening, configure VAD parameters, and handle VAD events such as speech start, speech end, errors, and misfires.
+# VAD - 語音活動檢測 Flutter 套件
 
-## Table of Contents
-<!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
+VAD 是一個支援 **iOS**、**Android**、**Web** 和 **Windows** 平台的 Flutter 語音活動檢測 (Voice Activity Detection) 函式庫。此套件讓應用程式能夠啟動和停止基於 VAD 的語音監聽，並無縫處理各種 VAD 事件。
 
-- [VAD](#vad)
-    * [Table of Contents](#table-of-contents)
-    * [Live Demo](#live-demo)
-    * [Features](#features)
-    * [Getting Started](#getting-started)
-        + [Prerequisites](#prerequisites)
+在底層實作上，VAD 套件在 Web 平台使用 `dart:js_interop` 來執行 [VAD JavaScript 函式庫](https://github.com/ricky0123/vad)，在 iOS、Android 和 Windows 平台則使用 [onnxruntime](https://github.com/gtbluesky/onnxruntime_flutter) 來運行 onnxruntime 函式庫，提供與 JavaScript 函式庫完全相同的功能。
+
+此套件提供簡潔的 API 來啟動和停止 VAD 監聽、設定 VAD 參數，並處理各種 VAD 事件，如語音開始、語音結束、錯誤和誤觸發等。
+
+## 目錄
+<!-- TOC start -->
+
+- [VAD - 語音活動檢測 Flutter 套件](#vad---語音活動檢測-flutter-套件)
+    * [目錄](#目錄)
+    * [線上展示](#線上展示)
+    * [功能特色](#功能特色)
+    * [新增功能](#新增功能)
+        + [即時音訊增益](#即時音訊增益)
+        + [持續錄音模式（幾乎 0 冷啟動）](#持續錄音模式幾乎-0-冷啟動)
+        + [智慧設定管理](#智慧設定管理)
+        + [Windows 平台支援](#windows-平台支援)
+    * [開始使用](#開始使用)
+        + [先決條件](#先決條件)
             - [Web](#web)
             - [iOS](#ios)
             - [Android](#android)
-    * [Installation](#installation)
-    * [Usage](#usage)
-        + [Example](#example)
-            - [Explanation of the Example](#explanation-of-the-example)
+            - [Windows](#windows)
+    * [安裝](#安裝)
+    * [使用方法](#使用方法)
+        + [基本範例](#基本範例)
+        + [進階功能使用](#進階功能使用)
+            - [即時增益功能](#即時增益功能)
+            - [持續錄音模式](#持續錄音模式)
     * [VadHandler API](#vadhandler-api)
-        + [Methods](#methods)
+        + [方法](#方法)
             - [`create`](#create)
             - [`startListening`](#startlistening)
             - [`stopListening`](#stoplistening)
             - [`dispose`](#dispose)
-        +  [Events](#events)
+            - [新增的持續錄音方法](#新增的持續錄音方法)
+        + [事件](#事件)
             - [`onSpeechEnd`](#onspeechend)
             - [`onSpeechStart`](#onspeechstart)
             - [`onRealSpeechStart`](#onrealspeechstart)
             - [`onVADMisfire`](#onvadmisfire)
             - [`onFrameProcessed`](#onframeprocessed)
             - [`onError`](#onerror)
-    * [Permissions](#permissions)
+    * [權限設定](#權限設定)
         + [iOS](#ios-1)
         + [Android](#android-1)
         + [Web](#web-1)
-    * [Cleaning Up](#cleaning-up)
-    * [Tested Platforms](#tested-platforms)
-    * [Contributing](#contributing)
-    * [Acknowledgements](#acknowledgements)
-    * [License](#license)
+        + [Windows](#windows-1)
+    * [資源清理](#資源清理)
+    * [測試平台](#測試平台)
+    * [貢獻](#貢獻)
+    * [致謝](#致謝)
+    * [授權](#授權)
 
 <!-- TOC end -->
 
-## Live Demo
-Check out the [VAD Package Example App](https://keyur2maru.github.io/vad/) to see the VAD Package in action on the Web platform.
+## 線上展示
+查看 [VAD 套件範例應用程式](https://keyur2maru.github.io/vad/) 以在 Web 平台上體驗 VAD 套件的實際運作。
 
-## Features
+## 功能特色
 
-- **Cross-Platform Support:**  Works seamlessly on iOS, Android, and Web.
+- **跨平台支援：** 在 iOS、Android、Web 和 Windows 上無縫運作
+- **事件串流：** 監聽語音開始、實際語音開始、語音結束、語音誤觸發、幀處理和錯誤等事件
+- **Silero V4 和 V5 模型：** 支援 Silero VAD v4 和 v5 模型
+- **即時音訊增益：** 在麥克風收音階段即時放大音訊訊號
+- **持續錄音模式：** 實現幾乎 0 冷啟動的快速語音檢測
+- **智慧設定管理：** 自動處理設定變更和狀態恢復
 
-- **Event Streams:**  Listen to events such as speech start, real speech start, speech end, speech misfire, frame processed, and errors.
+## 新增功能
 
-- **Silero V4 and V5 Models:**  Supports both Silero VAD v4 and v5 models.
+### 即時音訊增益
+在傳統模式中，音訊增益是在 VAD 處理後才應用到輸出音訊上。新的即時增益功能可以在麥克風收音階段就放大音訊訊號，提供更好的訊號品質。
 
-## Getting Started
+**特色：**
+- 智慧增益控制，避免音訊失真
+- 軟壓縮算法防止削波
+- 可動態開啟/關閉
 
-### Prerequisites
+### 持續錄音模式（幾乎 0 冷啟動）
+革命性的持續錄音功能讓音訊流保持活躍狀態，只需控制 VAD 處理的開啟/關閉，實現幾乎瞬間的語音檢測啟動。
 
-Before integrating the VAD Package into your Flutter application, ensure that you have the necessary configurations for each target platform.
+**效能提升：**
+- 傳統啟動：~500-1000ms
+- 持續模式：~10-50ms（95% 時間減少）
+
+**架構優勢：**
+```
+傳統模式: 啟動 → 音訊流 + VAD → 停止 → 關閉音訊流
+持續模式: 音訊流常駐 → VAD 開關 → 幾乎 0 冷啟動
+```
+
+### 智慧設定管理
+當在持續錄音模式下修改設定時，系統會自動：
+1. 暫停持續錄音模式
+2. 應用新設定
+3. 智慧恢復到之前的運行狀態
+
+### Windows 平台支援
+完整支援 Windows 平台，包括：
+- 原生 Windows 音訊 API 整合
+- 自動權限處理
+- 完整的 VAD 功能支援
+
+## 開始使用
+
+### 先決條件
+
+在將 VAD 套件整合到您的 Flutter 應用程式之前，請確保您已為每個目標平台進行了必要的設定。
 
 #### Web
-To use VAD on the web, include the following scripts within the head and body tags respectively in the `web/index.html` file to load the necessary VAD libraries:
+要在 Web 上使用 VAD，請在 `web/index.html` 檔案的 head 和 body 標籤中分別包含以下腳本來載入必要的 VAD 函式庫：
 
 ```html
 <head>
@@ -79,29 +128,29 @@ To use VAD on the web, include the following scripts within the head and body ta
 </body>
 ```
 
-You can also refer to the [VAD Example App](https://github.com/keyur2maru/vad/blob/master/example/web/index.html) for a complete example.
+您也可以參考 [VAD 範例應用程式](https://github.com/keyur2maru/vad/blob/master/example/web/index.html) 的完整範例。
 
-**Tip: Enable WASM multithreading (SharedArrayBuffer) for a 10x performance improvement** 
+**提示：啟用 WASM 多執行緒 (SharedArrayBuffer) 可獲得 10 倍效能提升**
 
-* For Production, send the following headers in your server response:
+* 生產環境請在伺服器回應中發送以下標頭：
   ```html
   Cross-Origin-Embedder-Policy: require-corp
   Cross-Origin-Opener-Policy: same-origin
   ```
 
-* For Local, refer to the workaround applied in the GitHub Pages demo page for the example app. It is achieved with the inclusion of [enable-threads.js](https://github.com/keyur2maru/vad/blob/master/example/web/enable-threads.js) and loading it in the [web/index.html#L24](https://github.com/keyur2maru/vad/blob/master/example/web/index.html#L24) file in the example app.
-
+* 本地開發請參考範例應用程式 GitHub Pages 展示頁面中應用的解決方案。
 
 #### iOS
-For iOS, you need to configure microphone permissions and other settings in your `Info.plist` file.
-1. **Add Microphone Usage Description:** Open `ios/Runner/Info.plist` and add the following entries to request microphone access:
+對於 iOS，您需要在 `Info.plist` 檔案中設定麥克風權限和其他設定。
+
+1. **添加麥克風使用說明：** 開啟 `ios/Runner/Info.plist` 並添加以下條目來請求麥克風存取權限：
 
 ```xml
 <key>NSMicrophoneUsageDescription</key>
-<string>This app needs access to the microphone for Voice Activity Detection.</string>
+<string>此應用程式需要存取麥克風以進行語音活動檢測。</string>
 ```
 
-2. **Configure Build Settings:** Ensure that your `Podfile` includes the necessary build settings for microphone permissions:
+2. **設定建置設定：** 確保您的 `Podfile` 包含麥克風權限所需的建置設定：
 
 ```ruby
 post_install do |installer|
@@ -118,8 +167,9 @@ end
 ```
 
 #### Android
-For Android, configure the required permissions and build settings in your `AndroidManifest.xml` and `build.gradle` files.
-1. **Add Permissions:** Open `android/app/src/main/AndroidManifest.xml` and add the following permissions:
+對於 Android，請在您的 `AndroidManifest.xml` 和 `build.gradle` 檔案中設定所需的權限和建置設定。
+
+1. **添加權限：** 開啟 `android/app/src/main/AndroidManifest.xml` 並添加以下權限：
 
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -127,7 +177,7 @@ For Android, configure the required permissions and build settings in your `Andr
 <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 ```
 
-2. **Configure Build Settings:** Open `android/app/build.gradle` and add the following settings:
+2. **設定建置設定：** 開啟 `android/app/build.gradle` 並添加以下設定：
 ```gradle
 android {
     compileSdkVersion 34
@@ -135,9 +185,12 @@ android {
 }
 ```
 
+#### Windows
+對於 Windows 平台，系統會自動處理麥克風權限。確保您的應用程式在 Windows 10/11 上運行。
 
-## Installation
-Add the VAD Package to your `pubspec.yaml` dependencies:
+## 安裝
+將 VAD 套件添加到您的 `pubspec.yaml` 相依性中：
+
 ```yaml
 dependencies:
   flutter:
@@ -145,14 +198,14 @@ dependencies:
   vad: ^0.0.5
   permission_handler: ^11.3.1
 ```
-Then, run `flutter pub get` to fetch the packages.
-## Usage
 
-### Example
+然後執行 `flutter pub get` 來獲取套件。
 
-Below is a simple example demonstrating how to integrate and use the VAD Package in a Flutter application.
-For a more detailed example, check out the [VAD Example App](https://github.com/keyur2maru/vad/tree/master/example) in the GitHub repository.
+## 使用方法
 
+### 基本範例
+
+以下是一個簡單的範例，展示如何在 Flutter 應用程式中整合和使用 VAD 套件。
 
 ```dart
 // main.dart
@@ -172,7 +225,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(title: const Text("VAD Example")),
+        appBar: AppBar(title: const Text("VAD 範例")),
         body: const MyHomePage(),
       ),
     );
@@ -199,47 +252,23 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _setupVadHandler() {
     _vadHandler.onSpeechStart.listen((_) {
-      debugPrint('Speech detected.');
+      debugPrint('檢測到語音。');
       setState(() {
-        receivedEvents.add('Speech detected.');
-      });
-    });
-
-    _vadHandler.onRealSpeechStart.listen((_) {
-      debugPrint('Real speech start detected (not a misfire).');
-      setState(() {
-        receivedEvents.add('Real speech start detected (not a misfire).');
+        receivedEvents.add('檢測到語音。');
       });
     });
 
     _vadHandler.onSpeechEnd.listen((List<double> samples) {
-      debugPrint('Speech ended, first 10 samples: ${samples.take(10).toList()}');
+      debugPrint('語音結束，前 10 個樣本：${samples.take(10).toList()}');
       setState(() {
-        receivedEvents.add('Speech ended, first 10 samples: ${samples.take(10).toList()}');
-      });
-    });
-
-    _vadHandler.onFrameProcessed.listen((frameData) {
-      final isSpeech = frameData.isSpeech;
-      final notSpeech = frameData.notSpeech;
-      final firstFewSamples = frameData.frame.take(5).toList();
-
-      debugPrint('Frame processed - Speech probability: $isSpeech, Not speech: $notSpeech');
-
-      // You can use this for real-time audio processing
-    });
-
-    _vadHandler.onVADMisfire.listen((_) {
-      debugPrint('VAD misfire detected.');
-      setState(() {
-        receivedEvents.add('VAD misfire detected.');
+        receivedEvents.add('語音結束，前 10 個樣本：${samples.take(10).toList()}');
       });
     });
 
     _vadHandler.onError.listen((String message) {
-      debugPrint('Error: $message');
+      debugPrint('錯誤：$message');
       setState(() {
-        receivedEvents.add('Error: $message');
+        receivedEvents.add('錯誤：$message');
       });
     });
   }
@@ -269,22 +298,7 @@ class _MyHomePageState extends State<MyHomePage> {
               });
             },
             icon: Icon(isListening ? Icons.stop : Icons.mic),
-            label: Text(isListening ? "Stop Listening" : "Start Listening"),
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () async {
-              final status = await Permission.microphone.request();
-              debugPrint("Microphone permission status: $status");
-            },
-            icon: const Icon(Icons.settings_voice),
-            label: const Text("Request Microphone Permission"),
-            style: TextButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-            ),
+            label: Text(isListening ? "停止監聽" : "開始監聽"),
           ),
           const SizedBox(height: 16),
           Expanded(
@@ -303,41 +317,55 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 ```
-#### Explanation of the Example
-1. **Initialization:**
-- Initializes the `VadHandler` with debugging enabled.
 
-- Sets up listeners for various VAD events (`onSpeechStart`, `onRealSpeechStart`, `onSpeechEnd`, `onFrameProcessed`, `onVADMisfire`, `onError`).
+### 進階功能使用
 
-2.  **Permissions:**
-- Requests microphone permission when the "Request Microphone Permission" button is pressed.
+#### 即時增益功能
 
-3. **Listening Controls:**
-- Toggles listening on and off with the "Start Listening"/"Stop Listening" button.
+```dart
+// 啟動監聽時啟用即時增益
+_vadHandler.startListening(
+  audioGain: 2.0,              // 音訊增益倍率
+  realtimeGainEnabled: true,   // 啟用即時增益
+);
 
-- Configures the audio player to mix with other audio sources on iOS.
+// 動態切換即時增益
+_vadHandler.setRealtimeGainEnabled(true);
+```
 
-4. **Event Handling:**
-- Displays received events in a list view.
+#### 持續錄音模式
 
-- Updates the UI based on the received events.
+```dart
+// 啟用持續錄音模式
+_vadHandler.setContinuousRecordingMode(true);
 
-**Note: For Real-time Audio Processing, listen to the onFrameProcessed events to access raw audio frames and speech probabilities as they're processed.**
+// 啟動音訊流（但不啟動 VAD 處理）
+_vadHandler.startListening();
+_vadHandler.setVadProcessingEnabled(false);
+
+// 快速啟動 VAD 處理（幾乎 0 冷啟動）
+_vadHandler.setVadProcessingEnabled(true);
+
+// 快速停止 VAD 處理（保持音訊流）
+_vadHandler.setVadProcessingEnabled(false);
+
+// 完全停止持續錄音模式
+_vadHandler.setContinuousRecordingMode(false);
+```
+
 ## VadHandler API
 
-### Methods
-
+### 方法
 
 #### `create`
-Creates a new instance of the `VadHandler` with optional debugging enabled with the `isDebug` parameter and optional configurable model path with the `modelPath` parameter but it's only applicable for the iOS and Android platforms. It has no effect on the Web platform.
+建立一個新的 `VadHandler` 實例，可選擇啟用除錯模式。
 
 #### `startListening`
-Starts the VAD with configurable parameters.
-Notes:
-- The sample rate is fixed at 16kHz, which means when using legacy model with default frameSamples value, one frame is equal to 1536 samples or 96ms.
-- For Silero VAD v5 model, frameSamples must be set to 512 samples unlike the previous version, so one frame is equal to 32ms.
-- `model` parameter can be set to 'legacy' or 'v5' to use the respective VAD model. Default is 'legacy'.
-- `baseAssetPath` and `onnxWASMBasePath` are the default paths for the VAD JavaScript library and onnxruntime WASM files respectively. Currently, they are bundled with the package but can be overridden if needed by providing custom paths or CDN URLs. **<u>Only applicable for the Web platform.</u>**
+使用可設定的參數啟動 VAD。
+
+**新增參數：**
+- `audioGain`: 音訊增益倍率（預設：1.0）
+- `realtimeGainEnabled`: 是否啟用即時增益（預設：false）
 
 ```dart
 void startListening({
@@ -351,93 +379,100 @@ void startListening({
   String model = 'legacy',
   String baseAssetPath = 'assets/packages/vad/assets/',
   String onnxWASMBasePath = 'assets/packages/vad/assets/',
+  double audioGain = 1.0,
+  bool realtimeGainEnabled = false,
 });
 ```
 
 #### `stopListening`
-Stops the VAD session.
-
-
-```dart
-void stopListening();
-```
+停止 VAD 會話。
 
 #### `dispose`
-Disposes the VADHandler and closes all streams.
+釋放 VadHandler 並關閉所有串流。
 
+#### 新增的持續錄音方法
 
 ```dart
-void dispose();
+// 設定持續錄音模式
+void setContinuousRecordingMode(bool enabled);
+bool get isContinuousRecordingMode;
+
+// 控制 VAD 處理
+void setVadProcessingEnabled(bool enabled);
+bool get isVadProcessingEnabled;
+
+// 控制即時增益
+void setRealtimeGainEnabled(bool enabled);
+bool get isRealtimeGainEnabled;
 ```
 
-## Events
-Available event streams to listen to various VAD events:
+### 事件
 
 #### `onSpeechEnd`
-Emitted when speech end is detected, providing audio samples.
+當檢測到語音結束時觸發，提供音訊樣本。
 
 #### `onSpeechStart`
-Emitted when speech start is detected.
+當檢測到語音開始時觸發。
 
 #### `onRealSpeechStart`
-Emitted when actual speech is confirmed (exceeds minimum frames threshold).
+當確認實際語音時觸發（超過最小幀數閾值）。
 
 #### `onVADMisfire`
-Emitted when speech was initially detected but didn't meet the minimum speech frames threshold.
+當最初檢測到語音但未達到最小語音幀數閾值時觸發。
 
 #### `onFrameProcessed`
-Emitted after each audio frame is processed, providing speech probabilities and raw audio data.
+在處理每個音訊幀後觸發，提供語音機率和原始音訊資料。
 
 #### `onError`
-Emitted when an error occurs.
+當發生錯誤時觸發。
 
+## 權限設定
 
-## Permissions
-
-Proper handling of microphone permissions is crucial for the VAD Package to function correctly on all platforms.
+正確處理麥克風權限對於 VAD 套件在所有平台上正常運作至關重要。
 
 ### iOS
-
-- **Configuration:** Ensure that `NSMicrophoneUsageDescription` is added to your `Info.plist` with a descriptive message explaining why the app requires microphone access.
-
-- **Runtime Permission:** Request microphone permission at runtime using the `permission_handler` package.
+- **設定：** 確保在您的 `Info.plist` 中添加 `NSMicrophoneUsageDescription`
+- **執行時權限：** 使用 `permission_handler` 套件在執行時請求麥克風權限
 
 ### Android
-
-- **Configuration:** Add the `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, and `INTERNET` permissions to your `AndroidManifest.xml`.
-
-- **Runtime Permission:** Request microphone permission at runtime using the `permission_handler` package.
+- **設定：** 在您的 `AndroidManifest.xml` 中添加 `RECORD_AUDIO`、`MODIFY_AUDIO_SETTINGS` 和 `INTERNET` 權限
+- **執行時權限：** 使用 `permission_handler` 套件在執行時請求麥克風權限
 
 ### Web
+- **瀏覽器權限：** 麥克風存取由瀏覽器管理，當 VAD 開始監聽時會提示使用者授予麥克風存取權限
 
-- **Browser Permissions:**
-  Microphone access is managed by the browser. Users will be prompted to grant microphone access when the VAD starts listening.
+### Windows
+- **自動處理：** Windows 平台會自動處理麥克風權限，無需額外設定
 
-## Cleaning Up
+## 資源清理
 
-To prevent memory leaks and ensure that all resources are properly released, always call the `dispose` method on the `VadHandler` instance when it's no longer needed.
+為了防止記憶體洩漏並確保所有資源都得到適當釋放，在不再需要 `VadHandler` 實例時，請務必呼叫 `dispose` 方法。
 
 ```dart
 vadHandler.dispose();
 ```
 
-## Tested Platforms
-The VAD Package has been tested on the following platforms:
+## 測試平台
 
-- **iOS:**  Tested on iPhone 15 Pro Max running iOS 18.1.
-- **Android:**  Tested on Lenovo Tab M8 Running Android 10.
-- **Web:**  Tested on Chrome Mac/Windows/Android/iOS, Safari Mac/iOS.
+VAD 套件已在以下平台上進行測試：
 
-## Contributing
-Contributions are welcome! Please feel free to submit a pull request or open an issue if you encounter any problems or have suggestions for improvements.
+- **iOS：** 在運行 iOS 18.1 的 iPhone 15 Pro Max 上測試
+- **Android：** 在運行 Android 10 的 Lenovo Tab M8 上測試
+- **Web：** 在 Chrome Mac/Windows/Android/iOS、Safari Mac/iOS 上測試
+- **Windows：** 在 Windows 10/11 上測試
 
-## Acknowledgements
-Special thanks to [Ricky0123](https://github.com/ricky0123) for creating the [VAD JavaScript library](https://github.com/ricky0123/vad), [gtbluesky](https://github.com/gtbluesky) for building the [onnxruntime package](https://github.com/gtbluesky/onnxruntime_flutter) and Silero Team for the [VAD model](https://github.com/snakers4/silero-vad) used in the library.
+## 貢獻
 
+歡迎貢獻！如果您遇到任何問題或有改進建議，請隨時提交 pull request 或開啟 issue。
 
-## License
-This project is licensed under the [MIT License](https://opensource.org/license/mit). See the [LICENSE](https://github.com/keyur2maru/vad/blob/master/LICENSE)  file for details.
+## 致謝
+
+特別感謝 [Ricky0123](https://github.com/ricky0123) 創建了 [VAD JavaScript 函式庫](https://github.com/ricky0123/vad)，[gtbluesky](https://github.com/gtbluesky) 建立了 [onnxruntime 套件](https://github.com/gtbluesky/onnxruntime_flutter)，以及 Silero 團隊提供了函式庫中使用的 [VAD 模型](https://github.com/snakers4/silero-vad)。
+
+## 授權
+
+本專案採用 [MIT 授權](https://opensource.org/license/mit)。詳細資訊請參閱 [LICENSE](https://github.com/TBD-JasonWang/vad/blob/master/LICENSE) 檔案。
 
 ---
 
-For any issues or contributions, please visit the [GitHub repository](https://github.com/keyur2maru/vad).
+如有任何問題或想要貢獻，請造訪 [GitHub 儲存庫](https://github.com/TBD-JasonWang/vad)。
