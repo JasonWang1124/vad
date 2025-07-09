@@ -66,6 +66,9 @@ class _VadManagerState extends State<VadManager> {
   }
 
   void _initializeVad() {
+    // 記錄是否為第一次初始化
+    bool isFirstInit = !_isVadInitialized;
+
     // 如果已經初始化過，先釋放資源
     if (_isVadInitialized) {
       _vadHandler.dispose();
@@ -75,14 +78,17 @@ class _VadManagerState extends State<VadManager> {
     _setupVadHandler();
     _isVadInitialized = true;
 
-    // 設定更高的靈敏度
-    setState(() {
-      settings = settings.copy()
-        ..positiveSpeechThreshold = 0.2 // 降低正向閾值（原為0.5）
-        ..negativeSpeechThreshold = 0.15 // 降低負向閾值（原為0.35）
-        ..minSpeechFrames = 4 // 減少最小語音幀數（原為8）
-        ..redemptionFrames = 30; // 增加贖回幀數（提高容錯度）
-    });
+    // 只在第一次初始化時設定預設值
+    if (isFirstInit) {
+      setState(() {
+        settings = settings.copy()
+          ..positiveSpeechThreshold = 0.2 // 降低正向閾值（原為0.5）
+          ..negativeSpeechThreshold = 0.15 // 降低負向閾值（原為0.35）
+          ..minSpeechFrames = 4 // 減少最小語音幀數（原為8）
+          ..redemptionFrames = 30 // 增加贖回幀數（提高容錯度）
+          ..model = RecordingModel.v5;
+      });
+    }
 
     // 重置所有狀態
     setState(() {
@@ -103,7 +109,7 @@ class _VadManagerState extends State<VadManager> {
       positiveSpeechThreshold: settings.positiveSpeechThreshold,
       negativeSpeechThreshold: settings.negativeSpeechThreshold,
       submitUserSpeechOnPause: settings.submitUserSpeechOnPause,
-      model: "silero_vad_v5.onnx", // 使用確切的檔案名稱
+      model: settings.modelString,
       baseAssetPath: 'packages/vad/assets/',
       onnxWASMBasePath: 'packages/vad/assets/',
       audioGain: settings.audioGain,
@@ -209,9 +215,6 @@ class _VadManagerState extends State<VadManager> {
       final notSpeech = frameData.notSpeech;
       final decibels = frameData.decibels;
       final volumeLevel = frameData.volumeLevel;
-      final firstFiveSamples = frameData.frame.length >= 5
-          ? frameData.frame.sublist(0, 5)
-          : frameData.frame;
 
       setState(() {
         currentVolumeLevel = volumeLevel;
@@ -237,7 +240,6 @@ class _VadManagerState extends State<VadManager> {
 
       debugPrint(
           'Frame processed - isSpeech: $isSpeech, notSpeech: $notSpeech, decibels: $decibels, volumeLevel: $volumeLevel');
-      debugPrint('First few audio samples: $firstFiveSamples');
     });
 
     _vadHandler.onError.listen((String message) {
@@ -250,6 +252,13 @@ class _VadManagerState extends State<VadManager> {
   }
 
   void _applySettings(VadSettings newSettings) {
+    // 強制根據模型同步 frameSamples
+    if (newSettings.model == RecordingModel.legacy) {
+      newSettings.frameSamples = 1536;
+    } else {
+      newSettings.frameSamples = 512;
+    }
+
     bool wasListening = isListening;
 
     if (isListening) {

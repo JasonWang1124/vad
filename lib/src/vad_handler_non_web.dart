@@ -196,24 +196,18 @@ class VadHandlerNonWeb implements VadHandlerBase {
           audioGain: audioGain,
         );
 
-        // 設定模型路徑
-        if (modelPath.isEmpty) {
-          // 基於所選模型類型選擇預設路徑
-          String baseModelPath;
-          if (model == 'v5') {
-            baseModelPath = 'silero_vad_v5.onnx';
-          } else {
-            baseModelPath = 'silero_vad_legacy.onnx';
-          }
-
-          // 尋找不同的路徑格式
-          if (isDebug) debugPrint('VadHandlerNonWeb: 使用自動模型路徑');
-
-          // 嘗試標準包路徑格式 (這會在 pubspec.yaml 中的資源設定下工作)
-          modelPath = 'packages/vad/assets/$baseModelPath';
-
-          if (isDebug) debugPrint('VadHandlerNonWeb: 設定模型路徑為: $modelPath');
+        // 設定模型路徑 - 總是根據當前模型重新設定
+        String baseModelPath;
+        if (model == 'v5') {
+          baseModelPath = 'silero_vad_v5.onnx';
+        } else {
+          baseModelPath = 'silero_vad_legacy.onnx';
         }
+
+        // 嘗試標準包路徑格式 (這會在 pubspec.yaml 中的資源設定下工作)
+        modelPath = 'packages/vad/assets/$baseModelPath';
+
+        if (isDebug) debugPrint('VadHandlerNonWeb: 設定模型路徑為: $modelPath');
 
         if (isDebug) debugPrint('VadHandlerNonWeb: 使用模型路徑: $modelPath');
 
@@ -230,8 +224,10 @@ class VadHandlerNonWeb implements VadHandlerBase {
         _submitUserSpeechOnPause = submitUserSpeechOnPause;
         _isInitialized = true;
       } else {
-        // 如果已經初始化，只更新音訊增益
+        // 如果已經初始化，重置 VAD 狀態並更新音訊增益
+        _vadIterator.reset();
         _vadIterator.audioGain = audioGain;
+        if (isDebug) debugPrint('VadHandlerNonWeb: 重置 VAD 狀態');
       }
 
       // 檢查錄音權限
@@ -332,6 +328,9 @@ class VadHandlerNonWeb implements VadHandlerBase {
         _vadIterator.release();
         _isInitialized = false; // 重置初始化標誌
       }
+
+      // 重置模型路徑，強制重新初始化
+      modelPath = '';
     } catch (e) {
       if (isDebug) debugPrint('Error disposing VAD handler: $e');
     } finally {

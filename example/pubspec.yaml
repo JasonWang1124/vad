@@ -36,7 +36,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   permission_handler: ^11.4.0
-  audioplayers: ^6.3.0
+  audioplayers: ^6.5.0
   vad:
     path: ../
   path_provider: ^2.1.5

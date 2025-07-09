@@ -1,7 +1,7 @@
 // lib/ui/vad_ui.dart
 
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart' as audioplayers;
+import 'package:audioplayers/audioplayers.dart';
 import 'package:vad_example/recording.dart';
 import 'package:vad_example/audio_utils.dart';
 import 'package:vad_example/vad_settings_dialog.dart';
@@ -53,7 +53,7 @@ class VadUI extends StatefulWidget {
 }
 
 class _VadUIState extends State<VadUI> {
-  final audioplayers.AudioPlayer _audioPlayer = audioplayers.AudioPlayer();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   final ScrollController _scrollController = ScrollController();
 
   // Audio player state
@@ -72,14 +72,14 @@ class _VadUIState extends State<VadUI> {
 
   Future<void> _initializeAudioPlayer() async {
     await _audioPlayer.setAudioContext(
-      audioplayers.AudioContext(
-        iOS: audioplayers.AudioContextIOS(
-          options: const {audioplayers.AVAudioSessionOptions.mixWithOthers},
-          category: audioplayers.AVAudioSessionCategory.playAndRecord,
+      AudioContext(
+        iOS: AudioContextIOS(
+          options: const {AVAudioSessionOptions.mixWithOthers},
+          category: AVAudioSessionCategory.playAndRecord,
         ),
-        android: const audioplayers.AudioContextAndroid(
-          contentType: audioplayers.AndroidContentType.speech,
-          usageType: audioplayers.AndroidUsageType.voiceCommunication,
+        android: const AudioContextAndroid(
+          contentType: AndroidContentType.speech,
+          usageType: AndroidUsageType.voiceCommunication,
         ),
       ),
     );
@@ -99,7 +99,7 @@ class _VadUIState extends State<VadUI> {
 
     _audioPlayer.onPlayerStateChanged.listen((state) {
       setState(() {
-        _isPlaying = state == audioplayers.PlayerState.playing;
+        _isPlaying = state == PlayerState.playing;
       });
     });
   }
@@ -128,7 +128,7 @@ class _VadUIState extends State<VadUI> {
       } else {
         if (_currentlyPlayingIndex != index) {
           String uri = AudioUtils.createWavUrl(recording.samples!);
-          await _audioPlayer.play(audioplayers.UrlSource(uri));
+          await _audioPlayer.play(UrlSource(uri));
           setState(() {
             _currentlyPlayingIndex = index;
             _isPlaying = true;

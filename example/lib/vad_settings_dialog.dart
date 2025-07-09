@@ -155,37 +155,28 @@ class _VadSettingsDialogState extends State<VadSettingsDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Model selection
+            // 模型選擇
             Row(
               children: [
-                const Text('Model:'),
+                const Text('模型:'),
                 const SizedBox(width: 8),
                 DropdownButton<RecordingModel>(
                   value: tempSettings.model,
                   items: const [
                     DropdownMenuItem(
                         value: RecordingModel.legacy,
-                        child: Text('v4 (Legacy)')),
+                        child: Text('Legacy (v4)')),
                     DropdownMenuItem(
-                        value: RecordingModel.v5, child: Text('v5')),
+                        value: RecordingModel.v5, child: Text('V5 (最新)')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
                       setState(() {
                         tempSettings.model = value;
-                        tempSettings.resetToDefaults();
+                        tempSettings.resetToDefaults(); // 切換模型時自動重設所有參數
                       });
                     }
                   },
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      tempSettings.resetToDefaults();
-                    });
-                  },
-                  child: const Text('Reset to Defaults'),
                 ),
               ],
             ),

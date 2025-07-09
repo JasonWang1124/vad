@@ -182,6 +182,10 @@ class VadIteratorNonWeb implements VadIteratorBase {
           final bytes = rawAssetFile.buffer.asUint8List();
           _session = OrtSession.fromBuffer(bytes, _sessionOptions!);
           if (isDebug) debugPrint('VAD: 成功從路徑初始化模型: $path');
+
+          // 模型載入成功後，根據模型類型初始化正確的狀態
+          _initializeModelStates();
+
           return; // 成功後立即返回
         } catch (e) {
           if (isDebug) debugPrint('VAD: 路徑 $path 載入失敗: $e');
@@ -204,6 +208,23 @@ class VadIteratorNonWeb implements VadIteratorBase {
     }
   }
 
+  /// Initialize model states based on the model type
+  void _initializeModelStates() {
+    if (model == 'v5') {
+      // v5 模型使用不同的狀態結構
+      _state = List.filled(
+          2, List.filled(_batch, Float32List.fromList(List.filled(128, 0.0))));
+      if (isDebug) debugPrint('VAD: 初始化 v5 模型狀態');
+    } else {
+      // Legacy 模型使用 _hide 和 _cell
+      _hide = List.filled(
+          2, List.filled(_batch, Float32List.fromList(List.filled(64, 0.0))));
+      _cell = List.filled(
+          2, List.filled(_batch, Float32List.fromList(List.filled(64, 0.0))));
+      if (isDebug) debugPrint('VAD: 初始化 legacy 模型狀態');
+    }
+  }
+
   /// Reset the VAD iterator.
   @override
   void reset() {
@@ -214,12 +235,19 @@ class VadIteratorNonWeb implements VadIteratorBase {
     preSpeechBuffer.clear();
     speechBuffer.clear();
     _byteBuffer.clear();
-    _hide = List.filled(
-        2, List.filled(_batch, Float32List.fromList(List.filled(64, 0.0))));
-    _cell = List.filled(
-        2, List.filled(_batch, Float32List.fromList(List.filled(64, 0.0))));
-    _state = List.filled(
-        2, List.filled(_batch, Float32List.fromList(List.filled(128, 0.0))));
+
+    // 根據模型類型重置狀態
+    if (model == 'v5') {
+      _state = List.filled(
+          2, List.filled(_batch, Float32List.fromList(List.filled(128, 0.0))));
+    } else {
+      _hide = List.filled(
+          2, List.filled(_batch, Float32List.fromList(List.filled(64, 0.0))));
+      _cell = List.filled(
+          2, List.filled(_batch, Float32List.fromList(List.filled(64, 0.0))));
+      _state = List.filled(
+          2, List.filled(_batch, Float32List.fromList(List.filled(128, 0.0))));
+    }
   }
 
   /// Release the VAD iterator resources.
@@ -303,13 +331,22 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Run inference for Silero VAD v5 model
   Future<(double, List<OrtValue?>)> _runV5ModelInference(
       Float32List data) async {
+    debugPrint('data.length=${data.length}, shape=[$_batch, $frameSamples]');
+    debugPrint(
+        '_state shape=[${_state.length}, ${_state[0].length}, ${_state[0][0].length}]');
     final inputOrt =
         OrtValueTensor.createTensorWithDataList(data, [_batch, frameSamples]);
     final srOrt = OrtValueTensor.createTensorWithData(sampleRate);
-    final stateOrt = OrtValueTensor.createTensorWithDataList(_state);
+
+    // 確保 _state 是正確的維度：[2, 1, 128] 而不是 [2, 1, 128, 1]
+    final flatState =
+        _state.expand((layer) => layer.expand((batch) => batch)).toList();
+    final stateOrt = OrtValueTensor.createTensorWithDataList(
+        Float32List.fromList(flatState), [2, _batch, 128]);
     final runOptions = OrtRunOptions();
 
     final inputs = {'input': inputOrt, 'sr': srOrt, 'state': stateOrt};
+    debugPrint('inputs.keys=${inputs.keys}');
     final outputs = _session!.run(runOptions, inputs);
 
     inputOrt.release();
@@ -318,8 +355,12 @@ class VadIteratorNonWeb implements VadIteratorBase {
     runOptions.release();
 
     final speechProb = (outputs[0]?.value as List<List<double>>)[0][0];
-    _state = (outputs[1]?.value as List<List<List<double>>>)
-        .map((e) => e.map((e) => Float32List.fromList(e)).toList())
+
+    // 更新狀態，確保維度正確
+    final newStateData = outputs[1]?.value as List<List<List<double>>>;
+    _state = newStateData
+        .map((layer) =>
+            layer.map((batch) => Float32List.fromList(batch)).toList())
         .toList();
 
     return (speechProb, outputs);

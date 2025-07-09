@@ -225,7 +225,6 @@ class _MyHomePageState extends State<MyHomePage> {
       final firstFewSamples = frameData.frame.take(5).toList();
 
       debugPrint('Frame processed - Speech probability: $isSpeech, Not speech: $notSpeech');
-      debugPrint('First few audio samples: $firstFewSamples');
 
       // You can use this for real-time audio processing
     });
