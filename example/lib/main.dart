@@ -52,6 +52,9 @@ class _VadManagerState extends State<VadManager> {
   DateTime? _silenceStartTime;
   bool _isVadInitialized = false; // 新增：追蹤VAD是否已初始化
 
+  // 持續錄音模式初始化狀態
+  bool _isContinuousRecordingInitializing = false;
+
   // 靜音閥值回調
   final _onSilenceThresholdReachedController =
       StreamController<DateTime>.broadcast();
@@ -279,12 +282,12 @@ class _VadManagerState extends State<VadManager> {
     // 根據之前的狀態決定如何重新啟動
     if (wasContinuousMode) {
       // 重新啟用持續錄音模式
-      _enableContinuousRecording();
-
-      // 如果之前 VAD 處理是啟用的，重新啟用
-      if (wasVadProcessing) {
-        _quickStartVad();
-      }
+      _enableContinuousRecording().then((_) {
+        // 如果之前 VAD 處理是啟用的，重新啟用
+        if (wasVadProcessing) {
+          _quickStartVad();
+        }
+      });
 
       debugPrint('設定已應用：重新啟用持續錄音模式 (VAD處理: $wasVadProcessing)');
     } else if (wasListening) {
@@ -300,46 +303,115 @@ class _VadManagerState extends State<VadManager> {
   void _onSettingsDialogCancel(bool wasContinuousMode, bool wasVadProcessing) {
     // 如果之前是持續錄音模式，恢復該模式
     if (wasContinuousMode) {
-      _enableContinuousRecording();
-
-      // 如果之前 VAD 處理是啟用的，重新啟用
-      if (wasVadProcessing) {
-        _quickStartVad();
-      }
+      _enableContinuousRecording().then((_) {
+        // 如果之前 VAD 處理是啟用的，重新啟用
+        if (wasVadProcessing) {
+          _quickStartVad();
+        }
+      });
 
       debugPrint('設定對話框已取消：恢復持續錄音模式 (VAD處理: $wasVadProcessing)');
     }
   }
 
   /// 啟用持續錄音模式 - 實現幾乎 0 冷啟動
-  void _enableContinuousRecording() {
+  Future<void> _enableContinuousRecording() async {
     if (_isVadInitialized) {
-      _vadHandler.setContinuousRecordingMode(true);
+      try {
+        // 設置初始化狀態
+        setState(() {
+          _isContinuousRecordingInitializing = true;
+        });
 
-      // 啟動音訊流但停用 VAD 處理
-      _vadHandler.startListening(
-        frameSamples: settings.frameSamples,
-        minSpeechFrames: settings.minSpeechFrames,
-        preSpeechPadFrames: settings.preSpeechPadFrames,
-        redemptionFrames: settings.redemptionFrames,
-        positiveSpeechThreshold: settings.positiveSpeechThreshold,
-        negativeSpeechThreshold: settings.negativeSpeechThreshold,
-        submitUserSpeechOnPause: settings.submitUserSpeechOnPause,
-        model: settings.modelString,
-        baseAssetPath: 'packages/vad/assets/',
-        onnxWASMBasePath: 'packages/vad/assets/',
-        audioGain: settings.audioGain,
-        realtimeGainEnabled: settings.realtimeGainEnabled,
-      );
+        debugPrint('開始啟用持續錄音模式...');
 
-      // 停用 VAD 處理，只保持音訊流
-      _vadHandler.setVadProcessingEnabled(false);
+        // 設置持續錄音模式
+        _vadHandler.setContinuousRecordingMode(true);
 
+        // 給VAD一點時間來處理模式變更
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // 啟動音訊流但停用 VAD 處理
+        _vadHandler.startListening(
+          frameSamples: settings.frameSamples,
+          minSpeechFrames: settings.minSpeechFrames,
+          preSpeechPadFrames: settings.preSpeechPadFrames,
+          redemptionFrames: settings.redemptionFrames,
+          positiveSpeechThreshold: settings.positiveSpeechThreshold,
+          negativeSpeechThreshold: settings.negativeSpeechThreshold,
+          submitUserSpeechOnPause: settings.submitUserSpeechOnPause,
+          model: settings.modelString,
+          baseAssetPath: 'packages/vad/assets/',
+          onnxWASMBasePath: 'packages/vad/assets/',
+          audioGain: settings.audioGain,
+          realtimeGainEnabled: settings.realtimeGainEnabled,
+        );
+
+        // 給音訊流更多時間來完全初始化
+        await Future.delayed(const Duration(milliseconds: 10));
+
+        // 停用 VAD 處理，只保持音訊流
+        _vadHandler.setVadProcessingEnabled(false);
+
+        // 再次延遲確保狀態完全設置
+        // await Future.delayed(const Duration(milliseconds: 100));
+
+        // 驗證狀態是否正確設置
+        bool continuousMode = _vadHandler.isContinuousRecordingMode;
+        bool vadProcessing = _vadHandler.isVadProcessingEnabled;
+
+        debugPrint('狀態驗證 - 持續錄音: $continuousMode, VAD處理: $vadProcessing');
+
+        // 如果狀態不正確，再次嘗試設置
+        if (!continuousMode) {
+          debugPrint('重新設置持續錄音模式...');
+          _vadHandler.setContinuousRecordingMode(true);
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+
+        if (vadProcessing) {
+          debugPrint('重新停用VAD處理...');
+          _vadHandler.setVadProcessingEnabled(false);
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+
+        // 最終狀態更新
+        setState(() {
+          isListening = false; // UI 顯示為未監聽狀態
+        });
+
+        // 驗證最終狀態並強制UI更新
+        if (mounted) {
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // 使用專門的狀態同步方法
+          _validateAndSyncVadState();
+
+          // 再次延遲確保狀態完全同步
+          await Future.delayed(const Duration(milliseconds: 50));
+          _validateAndSyncVadState();
+        }
+
+        debugPrint('持續錄音模式已啟用 - 音訊流保持活躍，VAD 處理已停用');
+
+        // 清除初始化狀態
+        setState(() {
+          _isContinuousRecordingInitializing = false;
+        });
+      } catch (e) {
+        debugPrint('啟用持續錄音模式時發生錯誤: $e');
+        // 確保UI狀態一致
+        setState(() {
+          isListening = false;
+          _isContinuousRecordingInitializing = false; // 清除初始化狀態
+        });
+      }
+    } else {
+      debugPrint('VAD 尚未初始化，無法啟用持續錄音模式');
+      // 確保初始化狀態正確
       setState(() {
-        isListening = false; // UI 顯示為未監聽狀態
+        _isContinuousRecordingInitializing = false;
       });
-
-      debugPrint('持續錄音模式已啟用 - 音訊流保持活躍，VAD 處理已停用');
     }
   }
 
@@ -356,6 +428,11 @@ class _VadManagerState extends State<VadManager> {
 
       // 啟動靜音計時器
       _startSilenceTimer();
+
+      // 同步狀態確保UI正確更新
+      Future.delayed(const Duration(milliseconds: 50), () {
+        _validateAndSyncVadState();
+      });
 
       debugPrint('VAD 處理已快速啟動 - 幾乎 0 冷啟動！');
     } else {
@@ -378,6 +455,11 @@ class _VadManagerState extends State<VadManager> {
       _stopSilenceTimer();
       _resetSilenceDetection();
 
+      // 同步狀態確保UI正確更新
+      Future.delayed(const Duration(milliseconds: 50), () {
+        _validateAndSyncVadState();
+      });
+
       debugPrint('VAD 處理已快速停止 - 音訊流保持活躍');
     } else {
       // 回退到傳統停止方式
@@ -386,12 +468,22 @@ class _VadManagerState extends State<VadManager> {
   }
 
   /// 完全停止持續錄音模式
-  void _disableContinuousRecording() {
+  Future<void> _disableContinuousRecording() async {
     if (_isVadInitialized) {
-      _vadHandler.setContinuousRecordingMode(false);
-      _stopListening(); // 完全停止音訊流
+      try {
+        _vadHandler.setContinuousRecordingMode(false);
 
-      debugPrint('持續錄音模式已停用');
+        // 給一點時間來處理模式變更
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        _stopListening(); // 完全停止音訊流
+
+        debugPrint('持續錄音模式已停用');
+      } catch (e) {
+        debugPrint('停用持續錄音模式時發生錯誤: $e');
+        // 確保狀態一致
+        _stopListening();
+      }
     }
   }
 
@@ -458,6 +550,7 @@ class _VadManagerState extends State<VadManager> {
           _isVadInitialized ? _vadHandler.isContinuousRecordingMode : false,
       isVadProcessingEnabled:
           _isVadInitialized ? _vadHandler.isVadProcessingEnabled : true,
+      isContinuousRecordingInitializing: _isContinuousRecordingInitializing,
     );
   }
 
@@ -514,5 +607,18 @@ class _VadManagerState extends State<VadManager> {
   void _resetSilenceDetection() {
     _isSilent = true;
     _silenceStartTime = DateTime.now();
+  }
+
+  /// 驗證並同步VAD狀態，確保UI顯示正確
+  void _validateAndSyncVadState() {
+    if (_isVadInitialized && mounted) {
+      // 強制UI重建以反映最新的VAD狀態
+      setState(() {
+        // 這個setState會觸發UI重建，確保isContinuousRecordingMode和isVadProcessingEnabled的最新值被讀取
+      });
+
+      debugPrint(
+          'VAD狀態已同步 - 持續錄音: ${_vadHandler.isContinuousRecordingMode}, VAD處理: ${_vadHandler.isVadProcessingEnabled}');
+    }
   }
 }

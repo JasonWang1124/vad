@@ -39,6 +39,7 @@ class VadUI extends StatefulWidget {
   final Function()? onDisableContinuousRecording;
   final bool? isContinuousRecordingMode;
   final bool? isVadProcessingEnabled;
+  final bool? isContinuousRecordingInitializing;
 
   const VadUI({
     super.key,
@@ -60,6 +61,7 @@ class VadUI extends StatefulWidget {
     this.onDisableContinuousRecording,
     this.isContinuousRecordingMode,
     this.isVadProcessingEnabled,
+    this.isContinuousRecordingInitializing,
   });
 
   @override
@@ -464,43 +466,71 @@ class _VadUIState extends State<VadUI> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: (widget.isContinuousRecordingMode ?? false)
-                          ? Colors.green.withValues(alpha: 0.1)
-                          : Colors.grey.withValues(alpha: 0.1),
+                      color: (widget.isContinuousRecordingInitializing ?? false)
+                          ? Colors.orange.withValues(alpha: 0.1)
+                          : (widget.isContinuousRecordingMode ?? false)
+                              ? Colors.green.withValues(alpha: 0.1)
+                              : Colors.grey.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: (widget.isContinuousRecordingMode ?? false)
-                            ? Colors.green
-                            : Colors.grey,
+                        color: (widget.isContinuousRecordingInitializing ?? false)
+                            ? Colors.orange
+                            : (widget.isContinuousRecordingMode ?? false)
+                                ? Colors.green
+                                : Colors.grey,
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          (widget.isContinuousRecordingMode ?? false)
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_unchecked,
-                          color: (widget.isContinuousRecordingMode ?? false)
-                              ? Colors.green
-                              : Colors.grey,
-                        ),
+                        // 狀態圖示
+                        if (widget.isContinuousRecordingInitializing ?? false) ...[
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                            ),
+                          ),
+                        ] else ...[
+                          Icon(
+                            (widget.isContinuousRecordingMode ?? false)
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: (widget.isContinuousRecordingMode ?? false)
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                        ],
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '持續錄音: ${(widget.isContinuousRecordingMode ?? false) ? "已啟用" : "已停用"}',
+                                (widget.isContinuousRecordingInitializing ?? false)
+                                    ? '持續錄音: 初始化中...'
+                                    : '持續錄音: ${(widget.isContinuousRecordingMode ?? false) ? "已啟用" : "已停用"}',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold),
                               ),
-                              Text(
-                                'VAD 處理: ${(widget.isVadProcessingEnabled ?? true) ? "已啟用" : "已停用"}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
+                              if (!(widget.isContinuousRecordingInitializing ?? false)) ...[
+                                Text(
+                                  'VAD 處理: ${(widget.isVadProcessingEnabled ?? true) ? "已啟用" : "已停用"}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
                                 ),
-                              ),
+                              ] else ...[
+                                Text(
+                                  '正在設置音訊流和VAD處理...',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -513,9 +543,22 @@ class _VadUIState extends State<VadUI> {
                   if (!(widget.isContinuousRecordingMode ?? false)) ...[
                     // 啟用持續錄音模式
                     ElevatedButton.icon(
-                      onPressed: widget.onEnableContinuousRecording,
-                      icon: const Icon(Icons.settings_backup_restore),
-                      label: const Text('啟用持續錄音模式'),
+                      onPressed: (widget.isContinuousRecordingInitializing ?? false) 
+                          ? null 
+                          : widget.onEnableContinuousRecording,
+                      icon: (widget.isContinuousRecordingInitializing ?? false)
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.settings_backup_restore),
+                      label: Text((widget.isContinuousRecordingInitializing ?? false)
+                          ? '服務初始化中...'
+                          : '啟用持續錄音模式'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
