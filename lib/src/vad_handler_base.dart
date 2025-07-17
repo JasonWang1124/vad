@@ -42,7 +42,8 @@ abstract class VadHandlerBase {
       String baseAssetPath = 'assets/packages/vad/assets/',
       String onnxWASMBasePath = 'assets/packages/vad/assets/',
       double audioGain = 1.0,
-      bool realtimeGainEnabled = false});
+      bool realtimeGainEnabled = false,
+      bool saveOriginalAudio = false});
 
   /// Stop listening for speech events
   void stopListening();

@@ -19,6 +19,12 @@ abstract class VadIteratorBase {
   /// Get current real-time gain status
   bool get isRealtimeGainEnabled;
 
+  /// Enable or disable saving original audio (without gain applied)
+  void setSaveOriginalAudio(bool enabled);
+
+  /// Get current save original audio status
+  bool get isSaveOriginalAudio;
+
   /// Enable or disable VAD processing while keeping audio stream active
   void setVadProcessingEnabled(bool enabled);
 

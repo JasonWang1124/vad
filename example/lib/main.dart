@@ -117,6 +117,7 @@ class _VadManagerState extends State<VadManager> {
       onnxWASMBasePath: 'packages/vad/assets/',
       audioGain: settings.audioGain,
       realtimeGainEnabled: settings.realtimeGainEnabled,
+      saveOriginalAudio: settings.saveOriginalAudio,
     );
     setState(() {
       isListening = true;
@@ -345,6 +346,7 @@ class _VadManagerState extends State<VadManager> {
           onnxWASMBasePath: 'packages/vad/assets/',
           audioGain: settings.audioGain,
           realtimeGainEnabled: settings.realtimeGainEnabled,
+          saveOriginalAudio: settings.saveOriginalAudio,
         );
 
         // 給音訊流更多時間來完全初始化

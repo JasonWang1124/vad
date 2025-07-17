@@ -7,6 +7,7 @@ import 'package:vad/src/vad_iterator_base.dart';
 class VadIteratorWeb implements VadIteratorBase {
   double _audioGain = 1.0;
   bool _realtimeGainEnabled = false;
+  bool _saveOriginalAudio = false;
 
   @override
   double get audioGain => _audioGain;
@@ -24,6 +25,15 @@ class VadIteratorWeb implements VadIteratorBase {
 
   @override
   bool get isRealtimeGainEnabled => _realtimeGainEnabled;
+
+  @override
+  void setSaveOriginalAudio(bool enabled) {
+    _saveOriginalAudio = enabled;
+    // Web 版本不支援保存原始音訊，僅保存狀態以保持相容性
+  }
+
+  @override
+  bool get isSaveOriginalAudio => _saveOriginalAudio;
 
   @override
   void setVadProcessingEnabled(bool enabled) {
@@ -90,9 +100,11 @@ VadIteratorBase createVadIterator(
     required bool submitUserSpeechOnPause,
     required String model,
     double audioGain = 1.0,
-    bool realtimeGainEnabled = false}) {
+    bool realtimeGainEnabled = false,
+    bool saveOriginalAudio = false}) {
   final iterator = VadIteratorWeb();
   iterator.audioGain = audioGain;
   iterator.setRealtimeGainEnabled(realtimeGainEnabled);
+  iterator.setSaveOriginalAudio(saveOriginalAudio);
   return iterator;
 }

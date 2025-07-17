@@ -58,6 +58,9 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Whether continuous recording mode is enabled
   bool _continuousRecordingMode = false;
 
+  /// Whether to save original audio (without gain applied)
+  bool _saveOriginalAudio = false;
+
   @override
   double get audioGain => _audioGain;
 
@@ -105,6 +108,19 @@ class VadIteratorNonWeb implements VadIteratorBase {
   /// Get continuous recording mode status
   @override
   bool get isContinuousRecordingMode => _continuousRecordingMode;
+
+  /// Enable or disable saving original audio (without gain applied)
+  @override
+  void setSaveOriginalAudio(bool enabled) {
+    _saveOriginalAudio = enabled;
+    if (isDebug) {
+      debugPrint('Save original audio ${enabled ? "enabled" : "disabled"}');
+    }
+  }
+
+  /// Get current save original audio status
+  @override
+  bool get isSaveOriginalAudio => _saveOriginalAudio;
 
   // Internal variables
   /// Flag to indicate speech detection state.
@@ -158,8 +174,10 @@ class VadIteratorNonWeb implements VadIteratorBase {
     required this.submitUserSpeechOnPause,
     required this.model,
     double audioGain = 1.0,
+    bool saveOriginalAudio = false,
   }) : frameByteCount = frameSamples * 2 {
     _audioGain = audioGain;
+    _saveOriginalAudio = saveOriginalAudio;
   }
 
   /// Initialize the VAD model from the given [modelPath].
@@ -658,16 +676,27 @@ class VadIteratorNonWeb implements VadIteratorBase {
         // 先轉換回浮點數樣本
         final rawSamples = int16List.map((e) => e / 32768.0).toList();
 
-        // 分析並求最佳增益值
-        final optimalGain = _getOptimalGain(rawSamples, _audioGain);
-        if (isDebug && optimalGain != _audioGain) {
-          debugPrint(
-              'Adjusted gain from ${_audioGain.toStringAsFixed(2)} to ${optimalGain.toStringAsFixed(2)} to reduce distortion');
-        }
+        List<double> floatSamples;
+        
+        // 如果啟用了保存原始音訊，則直接返回未經增益處理的音訊
+        if (_saveOriginalAudio) {
+          if (isDebug) {
+            debugPrint('Manual end: Saving original audio without gain applied');
+          }
+          floatSamples = rawSamples.map((e) => e.clamp(-1.0, 1.0)).toList();
+        } else {
+          // 否則應用增益處理（現有邏輯）
+          // 分析並求最佳增益值
+          final optimalGain = _getOptimalGain(rawSamples, _audioGain);
+          if (isDebug && optimalGain != _audioGain) {
+            debugPrint(
+                'Adjusted gain from ${_audioGain.toStringAsFixed(2)} to ${optimalGain.toStringAsFixed(2)} to reduce distortion');
+          }
 
-        // 應用軟壓縮和優化後的增益
-        final floatSamples =
-            rawSamples.map((e) => _softClip(e, optimalGain)).toList();
+          // 應用軟壓縮和優化後的增益
+          floatSamples =
+              rawSamples.map((e) => _softClip(e, optimalGain)).toList();
+        }
 
         // Emit event
         onVadEvent?.call(VadEvent(
@@ -716,6 +745,24 @@ class VadIteratorNonWeb implements VadIteratorBase {
       offset += frame.length;
     }
 
+    // 如果啟用了保存原始音訊，則直接返回未經增益處理的音訊
+    if (_saveOriginalAudio) {
+      if (isDebug) {
+        debugPrint('Saving original audio without gain applied');
+      }
+      // 直接轉換為Int16，不應用增益
+      final int16Data = Int16List.fromList(combined.map((e) {
+        // 確保值在-1.0到1.0範圍內
+        double clampedSample = e.clamp(-1.0, 1.0);
+        // 轉換為16位整數
+        return (clampedSample * 32767).toInt();
+      }).toList());
+      
+      final Uint8List audioData = Uint8List.view(int16Data.buffer);
+      return audioData;
+    }
+
+    // 否則應用增益處理（現有邏輯）
     // 分析並找到最佳增益值
     final optimalGain = _getOptimalGain(combined, _audioGain);
     if (isDebug && optimalGain != _audioGain) {
@@ -799,6 +846,7 @@ VadIteratorBase createVadIterator({
   required String model,
   double audioGain = 1.0,
   bool realtimeGainEnabled = false,
+  bool saveOriginalAudio = false,
 }) {
   final iterator = VadIteratorNonWeb(
     isDebug: isDebug,
@@ -812,6 +860,7 @@ VadIteratorBase createVadIterator({
     submitUserSpeechOnPause: submitUserSpeechOnPause,
     model: model,
     audioGain: audioGain,
+    saveOriginalAudio: saveOriginalAudio,
   );
 
   // 設定即時增益

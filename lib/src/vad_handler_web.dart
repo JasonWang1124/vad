@@ -113,7 +113,8 @@ class VadHandlerWeb implements VadHandlerBase {
       String baseAssetPath = 'assets/packages/vad/assets/',
       String onnxWASMBasePath = 'assets/packages/vad/assets/',
       double audioGain = 1.0,
-      bool realtimeGainEnabled = false}) {
+      bool realtimeGainEnabled = false,
+      bool saveOriginalAudio = false}) {
     if (isDebug) {
       debugPrint(
           'VadHandlerWeb: startListening: Calling startListeningImpl with parameters: '
@@ -128,10 +129,11 @@ class VadHandlerWeb implements VadHandlerBase {
           'baseAssetPath: $baseAssetPath, '
           'onnxWASMBasePath: $onnxWASMBasePath, '
           'audioGain: $audioGain, '
-          'realtimeGainEnabled: $realtimeGainEnabled');
+          'realtimeGainEnabled: $realtimeGainEnabled, '
+          'saveOriginalAudio: $saveOriginalAudio');
     }
-    // Web 版本目前忽略 audioGain 和 realtimeGainEnabled 參數，因為音訊處理在 JavaScript 中完成
-    // 如果需要在 Web 版本中支援音訊增益，需要修改 JS 部分
+    // Web 版本目前忽略 audioGain、realtimeGainEnabled 和 saveOriginalAudio 參數，因為音訊處理在 JavaScript 中完成
+    // 如果需要在 Web 版本中支援音訊增益和原始音訊保存，需要修改 JS 部分
     startListeningImpl(
         positiveSpeechThreshold,
         negativeSpeechThreshold,

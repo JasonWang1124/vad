@@ -36,6 +36,9 @@ class VadSettings {
   // 即時增益開關
   bool realtimeGainEnabled;
 
+  // 保存原始音訊（不受增益影響）
+  bool saveOriginalAudio;
+
   VadSettings({
     this.model = RecordingModel.v5,
     this.frameSamples = 512,
@@ -48,6 +51,7 @@ class VadSettings {
     this.silenceThresholdSeconds = 7.0,
     this.audioGain = 1.0,
     this.realtimeGainEnabled = true,
+    this.saveOriginalAudio = false,
   });
 
   // Clone the settings
@@ -64,6 +68,7 @@ class VadSettings {
       silenceThresholdSeconds: silenceThresholdSeconds,
       audioGain: audioGain,
       realtimeGainEnabled: realtimeGainEnabled,
+      saveOriginalAudio: saveOriginalAudio,
     );
   }
 
@@ -89,6 +94,7 @@ class VadSettings {
     silenceThresholdSeconds = 3.0;
     audioGain = 1.0;
     realtimeGainEnabled = true;
+    saveOriginalAudio = false;
   }
 
   // 應用嘈雜環境的預設參數
@@ -591,6 +597,37 @@ class _VadSettingsDialogState extends State<VadSettingsDialog> {
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       Text(
                         '在麥克風收音時即時放大音訊，而非在 VAD 處理後才放大',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 保存原始音訊開關
+            Row(
+              children: [
+                Checkbox(
+                  value: tempSettings.saveOriginalAudio,
+                  onChanged: (value) {
+                    setState(() {
+                      tempSettings.saveOriginalAudio = value ?? false;
+                    });
+                  },
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('保存原始音訊',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        '保存未受音訊增益影響的原始音訊數據，而不是放大後的結果',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],

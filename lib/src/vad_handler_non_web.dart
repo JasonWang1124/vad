@@ -179,7 +179,8 @@ class VadHandlerNonWeb implements VadHandlerBase {
       String baseAssetPath = 'assets/packages/vad/assets/',
       String onnxWASMBasePath = 'assets/packages/vad/assets/',
       double audioGain = 1.0,
-      bool realtimeGainEnabled = false}) async {
+      bool realtimeGainEnabled = false,
+      bool saveOriginalAudio = false}) async {
     try {
       if (!_isInitialized) {
         if (isDebug) debugPrint('VadHandlerNonWeb: 初始化 VAD');
@@ -195,6 +196,7 @@ class VadHandlerNonWeb implements VadHandlerBase {
           submitUserSpeechOnPause: submitUserSpeechOnPause,
           model: model,
           audioGain: audioGain,
+          saveOriginalAudio: saveOriginalAudio,
         );
 
         // 設定模型路徑 - 總是根據當前模型重新設定
