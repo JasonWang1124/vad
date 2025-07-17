@@ -85,10 +85,10 @@ class _VadManagerState extends State<VadManager> {
     if (isFirstInit) {
       setState(() {
         settings = settings.copy()
-          ..positiveSpeechThreshold = 0.2 // 降低正向閾值（原為0.5）
-          ..negativeSpeechThreshold = 0.15 // 降低負向閾值（原為0.35）
-          ..minSpeechFrames = 4 // 減少最小語音幀數（原為8）
-          ..redemptionFrames = 30 // 增加贖回幀數（提高容錯度）
+          ..positiveSpeechThreshold = 0.8 // 降低正向閾值（原為0.5）
+          ..negativeSpeechThreshold = 0.2 // 降低負向閾值（原為0.35）
+          ..minSpeechFrames = 10 // 減少最小語音幀數（原為8）
+          ..redemptionFrames = 15 // 增加贖回幀數（提高容錯度）
           ..model = RecordingModel.v5;
       });
     }
